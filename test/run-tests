@@ -1,0 +1,73 @@
+#!/bin/sh
+
+# mdless integration test runner for the Docker wrapper image.
+
+set -eu
+
+IMAGE_NAME="${IMAGE_NAME:-1121citrus/mdless}"
+IMAGE_TAG="${IMAGE_TAG:-test}"
+IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
+
+fail() {
+    echo "[FAIL] $*" >&2
+    exit 1
+}
+
+assert_contains() {
+    haystack="${1}"
+    needle="${2}"
+    label="${3}"
+
+    echo "${haystack}" | grep -F "${needle}" >/dev/null 2>&1 || \
+        fail "${label}: expected output to contain '${needle}'"
+}
+
+echo "[INFO] Testing mdless Docker image: ${IMAGE}"
+
+echo "[INFO] Test 0: repository remains CLI-first"
+[ ! -f docker-compose.yml ] || fail "docker-compose.yml should not exist for CLI-first workflow"
+
+if ! docker info >/dev/null 2>&1; then
+    fail "Docker daemon is not running"
+fi
+
+echo "[INFO] Building Docker image"
+docker buildx build --load --provenance=mode=max --sbom=true -t "${IMAGE}" . >/dev/null
+
+echo "[INFO] Test 1: file argument renders markdown"
+file_output=$(docker run --rm -v "$(pwd)/test:/workspace:ro" "${IMAGE}" /workspace/sample.md)
+assert_contains "${file_output}" "Sample markdown file for testing" "file render"
+
+echo "[INFO] Test 2: stdin render works"
+stdin_output=$(printf '# stdin heading\n\nbody\n' | docker run --rm -i "${IMAGE}")
+assert_contains "${stdin_output}" "stdin heading" "stdin render"
+
+echo "[INFO] Test 3: no args + no stdin prints usage and exits non-zero"
+if no_input_output=$(docker run --rm "${IMAGE}" 2>&1); then
+    fail "no-input usage: expected non-zero exit"
+fi
+assert_contains "${no_input_output}" "Usage:" "no-input usage"
+
+echo "[INFO] Test 4: --help prints usage and exits successfully"
+help_output=$(docker run --rm -i "${IMAGE}" --help 2>&1)
+assert_contains "${help_output}" "Usage:" "help usage"
+
+echo "[INFO] Test 5: direct mdless args pass through"
+pass_through_output=$(docker run --rm -v "$(pwd)/test:/workspace:ro" "${IMAGE}" /workspace/sample.md)
+assert_contains "${pass_through_output}" "Feature 1" "arg pass-through"
+
+echo "[INFO] Test 6: container runs as non-root"
+user_id=$(docker run --rm --entrypoint node "${IMAGE}" -p 'process.getuid()')
+[ "${user_id}" = "10001" ] || fail "non-root runtime: expected uid 10001, got ${user_id}"
+
+echo "[INFO] Test 7: Docker Scout sees provenance attestation"
+if ! command -v docker >/dev/null 2>&1 || ! docker scout version >/dev/null 2>&1; then
+    echo "[SKIP] Test 7: docker scout not available — skipping provenance attestation check"
+else
+    if ! scout_output=$(docker scout quickview "local://${IMAGE}" 2>&1); then
+        fail "docker scout quickview failed"
+    fi
+    assert_contains "${scout_output}" "Provenance obtained from attestation" "provenance attestation"
+fi
+
+echo "[INFO] All tests passed"

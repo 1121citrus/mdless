@@ -1,0 +1,82 @@
+#!/bin/sh
+
+# Build script for mdless Docker image.
+#
+# This script standardizes local/CI image builds around buildx so supply-chain
+# metadata is always available by default.
+#
+# Default behavior:
+# - Loads the resulting image into the local Docker image store.
+# - Emits max-mode provenance attestations.
+# - Emits SBOM attestations.
+#
+# Environment variables:
+# - IMAGE_NAME: repository/name for the output image.
+# - IMAGE_TAG: tag for the output image.
+# - BUILD_CONTEXT: docker build context directory.
+# - BUILD_OUTPUT: `load` (local daemon) or `push` (registry).
+# - PROVENANCE_MODE: `max`, `min`, or `false`.
+# - SBOM_ATTESTATION: `true` or `false`.
+
+set -e
+
+IMAGE_NAME="${IMAGE_NAME:-1121citrus/mdless}"
+IMAGE_TAG="${IMAGE_TAG:-latest}"
+BUILD_CONTEXT="${BUILD_CONTEXT:-.}"
+BUILD_OUTPUT="${BUILD_OUTPUT:-load}"
+PROVENANCE_MODE="${PROVENANCE_MODE:-max}"
+SBOM_ATTESTATION="${SBOM_ATTESTATION:-true}"
+
+case "${BUILD_OUTPUT}" in
+    load|push)
+        # Valid. Resolved below to the matching buildx flag.
+        ;;
+    *)
+        echo "[ERROR] BUILD_OUTPUT must be 'load' or 'push'" >&2
+        exit 1
+        ;;
+esac
+
+case "${PROVENANCE_MODE}" in
+    max|min|false)
+        # Valid. Passed directly to `--provenance=mode=...`.
+        ;;
+    *)
+        echo "[ERROR] PROVENANCE_MODE must be 'max', 'min', or 'false'" >&2
+        exit 1
+        ;;
+esac
+
+case "${SBOM_ATTESTATION}" in
+    true|false)
+        # Valid boolean accepted by buildx `--sbom` flag.
+        ;;
+    *)
+        echo "[ERROR] SBOM_ATTESTATION must be 'true' or 'false'" >&2
+        exit 1
+        ;;
+esac
+
+echo "[INFO] Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}"
+echo "[INFO] Build context: ${BUILD_CONTEXT}"
+echo "[INFO] Build output: ${BUILD_OUTPUT}"
+echo "[INFO] Provenance mode: ${PROVENANCE_MODE}"
+echo "[INFO] SBOM attestation: ${SBOM_ATTESTATION}"
+
+if [ "${BUILD_OUTPUT}" = "push" ]; then
+    # Push image and attestations directly to the configured registry.
+    BUILD_FLAG="--push"
+else
+    # Load built image into local daemon for local testing/scanning.
+    BUILD_FLAG="--load"
+fi
+
+# Use buildx explicitly so provenance/SBOM flags are consistently supported.
+docker buildx build \
+    ${BUILD_FLAG} \
+    --provenance="mode=${PROVENANCE_MODE}" \
+    --sbom="${SBOM_ATTESTATION}" \
+    -t "${IMAGE_NAME}:${IMAGE_TAG}" \
+    "${BUILD_CONTEXT}"
+
+echo "[INFO] Build complete: ${IMAGE_NAME}:${IMAGE_TAG}"

@@ -1,0 +1,40 @@
+# Git ignore rules for mdless Docker project
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.project
+
+# Build artifacts
+build/
+dist/
+*.tar.gz
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# Environment
+.env
+.env.local
+*.pem
+
+# Temporary files
+*.tmp
+tmp/
+temp/
