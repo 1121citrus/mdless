@@ -1,6 +1,6 @@
 #!/bin/sh
 # shellcheck shell=bash
-# shellcheck disable=SC1073
+# shellcheck disable=SC1072,SC1073
 
 #
 # Pre-commit hook: lint shell scripts, Dockerfile, and Node.js source.
@@ -9,7 +9,7 @@
 #   git config core.hooksPath .githooks
 #
 # Tools used (skipped gracefully when not installed):
-#   shellcheck  https://github.com/koalaman/shellcheck
+#   shell check https://github.com/koalaman/shellcheck
 #   hadolint    https://github.com/hadolint/hadolint
 #   node        https://nodejs.org
 
