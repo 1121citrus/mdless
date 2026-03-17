@@ -32,7 +32,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 echo "[INFO] Building Docker image"
-docker buildx build --load --provenance=mode=max --sbom=true -t "${IMAGE}" . >/dev/null
+docker buildx build --load --provenance=false --sbom=false -t "${IMAGE}" . >/dev/null
 
 echo "[INFO] Test 1: file argument renders markdown"
 file_output=$(docker run --rm -v "$(pwd)/test:/workspace:ro" "${IMAGE}" /workspace/sample.md)
