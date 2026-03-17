@@ -20,9 +20,9 @@ ARG MDLESS_VERSION=latest
 # MARKED_VERSION: mdless ships an older, vulnerable version of the marked
 # renderer; this arg controls the replacement version installed below.
 ARG MARKED_VERSION=4.3.0
-# RUNTIME_IMAGE: distroless-style image that provides the Node runtime.
-# No shell or package manager is present in the final image.
-ARG RUNTIME_IMAGE=cgr.dev/chainguard/node:22
+# RUNTIME_IMAGE: runtime base image. Defaults to the official Node alpine
+# variant, which shares the same major.minor as the builder stage.
+ARG RUNTIME_IMAGE=node:${NODE_VERSION}-alpine${ALPINE_VERSION}
 
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
 # Full Alpine + npm toolchain used only to install and patch the mdless package.
@@ -53,8 +53,8 @@ RUN npm install --omit=dev "marked@${MARKED_VERSION}" \
     && npm cache clean --force >/dev/null 2>&1
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
-# Minimal runtime image — no shell, no package manager, no build tools.
-# hadolint ignore=DL3006
+# Minimal runtime image — no build tools, no npm cache, no layer history
+# from the builder stage.
 FROM ${RUNTIME_IMAGE}
 
 # Expose build metadata as environment variables for runtime inspection.
