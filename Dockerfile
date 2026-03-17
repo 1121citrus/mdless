@@ -54,6 +54,7 @@ RUN npm install --omit=dev "marked@${MARKED_VERSION}" \
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
 # Minimal runtime image — no shell, no package manager, no build tools.
+# hadolint ignore=DL3006
 FROM ${RUNTIME_IMAGE}
 
 # Expose build metadata as environment variables for runtime inspection.
