@@ -22,7 +22,7 @@ ARG MDLESS_VERSION=latest
 ARG MARKED_VERSION=4.3.0
 # RUNTIME_IMAGE: distroless-style image that provides the Node runtime.
 # No shell or package manager is present in the final image.
-ARG RUNTIME_IMAGE=cgr.dev/chainguard/node:latest
+ARG RUNTIME_IMAGE=cgr.dev/chainguard/node:22
 
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
 # Full Alpine + npm toolchain used only to install and patch the mdless package.
@@ -42,9 +42,13 @@ ARG MARKED_VERSION
 #         goes straight to stdout in a non-TTY container rather than spawning
 #         a pager process that would block or error.
 # 4. Purge the npm cache so it is not copied into the layer.
-RUN npm install -g "mdless@${MDLESS_VERSION}" \
-    && cd /usr/local/lib/node_modules/mdless \
-    && npm install --omit=dev "marked@${MARKED_VERSION}" \
+RUN npm install -g "mdless@${MDLESS_VERSION}"
+
+WORKDIR /usr/local/lib/node_modules/mdless
+
+# Replace bundled marked with the patched version and patch index.js for
+# marked v4+ API compatibility and non-TTY stdout output.
+RUN npm install --omit=dev "marked@${MARKED_VERSION}" \
     && node -e 'const fs=require("fs"); const file="index.js"; let source=fs.readFileSync(file,"utf8"); const markedReplacement=["var markedModule = require(\x27marked\x27);", "var marked = markedModule.marked || markedModule;"].join("\n"); source=source.replace("var marked = require(\x27marked\x27);", markedReplacement); source=source.replace("    pager(markedUp);", "    process.stdout.write(markedUp);"); fs.writeFileSync(file, source);' \
     && npm cache clean --force >/dev/null 2>&1
 

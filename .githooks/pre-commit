@@ -17,8 +17,11 @@ set -e
 
 lint_status=0
 
-hadolint () { 
-    docker run --rm -i hadolint/hadolint "${@}"
+hadolint () {
+    docker run --rm -i \
+        -v "$(pwd)/.hadolint.yaml:/.hadolint.yaml:ro" \
+        hadolint/hadolint \
+        < "${1}"
 }
 
 node() {
