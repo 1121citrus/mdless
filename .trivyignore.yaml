@@ -1,0 +1,50 @@
+# Trivy ignore file — YAML format.
+# Known vulnerabilities tracked in SECURITY.md.
+# Review each entry before the expiry date.
+
+vulnerabilities:
+  # zlib1g: integer overflow in minizip (Debian Bookworm, no fix available).
+  # minizip is not used by mdless or Node.js at runtime.
+  - id: CVE-2023-45853
+    statement: "minizip code path not reachable; mdless does not perform zip archive operations"
+    expired_at: "2026-06-17"
+
+  # glibc: memalign integer overflow (Debian Bookworm, no fix available).
+  # Requires attacker-controlled allocation size, not reachable via mdless.
+  - id: CVE-2026-0861
+    statement: "memalign path not reachable; mdless does not perform custom memory allocation"
+    expired_at: "2026-06-17"
+
+  # zlib1g: CRC32 DoS infinite loop (Debian Bookworm, no fix available).
+  # Low risk for markdown-only processing workloads.
+  - id: CVE-2026-27171
+    statement: "markdown workload does not process adversarial binary CRC32 inputs"
+    expired_at: "2026-06-17"
+
+  # minimatch ReDoS — npm's own bundled packages, not mdless's dependency tree.
+  # npm is present in the runtime image but is not invoked during mdless operation.
+  - id: CVE-2026-27903
+    statement: "npm's internal minimatch; npm not called at mdless runtime"
+    paths:
+      - "usr/local/lib/node_modules/npm/node_modules/minimatch"
+    expired_at: "2026-06-17"
+
+  - id: CVE-2026-27904
+    statement: "npm's internal minimatch; npm not called at mdless runtime"
+    paths:
+      - "usr/local/lib/node_modules/npm/node_modules/minimatch"
+    expired_at: "2026-06-17"
+
+  # tar path traversal — npm's own bundled packages, not mdless's dependency tree.
+  # npm is present in the runtime image but is not invoked during mdless operation.
+  - id: CVE-2026-29786
+    statement: "npm's internal tar; npm not called at mdless runtime"
+    paths:
+      - "usr/local/lib/node_modules/npm/node_modules/tar"
+    expired_at: "2026-06-17"
+
+  - id: CVE-2026-31802
+    statement: "npm's internal tar; npm not called at mdless runtime"
+    paths:
+      - "usr/local/lib/node_modules/npm/node_modules/tar"
+    expired_at: "2026-06-17"

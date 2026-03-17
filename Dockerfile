@@ -10,60 +10,73 @@
 # - Preserve a simple docker run UX for file and stdin-based markdown rendering.
 
 # ── Build-time arguments ──────────────────────────────────────────────────────
-# NODE_VERSION / ALPINE_VERSION: builder base image coordinates.
-ARG NODE_VERSION=22
-ARG ALPINE_VERSION=3.23
+# NODE_VERSION: builder and runtime base image coordinates.
+ARG NODE_VERSION=25.8.1-slim
 
-# TODO: Pin to a specific release (e.g. 0.0.33) rather than "latest" for
-# reproducible, supply-chain-safe builds.  Check https://www.npmjs.com/package/mdless
-# for the current stable release and set IMAGE_TAG accordingly.
-ARG MDLESS_VERSION=latest
+# MDLESS_VERSION: pinned to the current stable release.
+# Check https://www.npmjs.com/package/mdless for updates.
+ARG MDLESS_VERSION=2.0.1
 
-# MARKED_VERSION: mdless ships an older, vulnerable version of the marked
-# renderer; this arg controls the replacement version installed below.
+# MARKED_VERSION: mdless ships an older version of the marked renderer; this
+# arg controls the replacement version installed below.
+# NOTE: marked v5+ changed its export API (no .marked property); the
+# compatibility shim below only works with the v4 line.  Update the shim
+# before advancing beyond 4.x.
 ARG MARKED_VERSION=4.3.0
+
+# Transitive-dependency overrides — versions bundled by mdless that carry
+# known CVEs.  Pin each to the lowest version that fixes all advisories.
+#   tar:       >=7.5.11 fixes CVE-2026-23950/31802/29786/24842/23745/26960
+#   minimatch: >=9.0.7  fixes CVE-2026-27904/27903 (CVE-2026-26996 requires >=10.2.1)
+#   glob:      >=11.1.0 fixes CVE-2025-64756
+ARG TAR_VERSION=7.5.11
+ARG MINIMATCH_VERSION=9.0.7
+ARG GLOB_VERSION=11.1.0
 
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
 # Full Alpine + npm toolchain used only to install and patch the mdless package.
 # Nothing from this stage's OS layer reaches the runtime image.
-FROM node:${NODE_VERSION}-alpine${ALPINE_VERSION} AS builder
+FROM node:${NODE_VERSION} AS builder
 
 ARG MDLESS_VERSION
 ARG MARKED_VERSION
+ARG TAR_VERSION
+ARG MINIMATCH_VERSION
+ARG GLOB_VERSION
 
-# 1. Install mdless globally.
-# 2. Replace its bundled marked with the patched version declared above
+# 1. Install mdless globally (omitting devDependencies).
+# 2. Override vulnerable transitive dependencies with patched versions.
+# 3. Replace the bundled marked with the version declared above
 #    (the bundled version has known security advisories).
-# 3. Patch index.js in-place for two compatibility fixes:
+# 4. Patch index.js in-place for two compatibility fixes:
 #      a) marked v4+ ships as `module.exports = { marked, … }` rather than a
 #         bare function, so normalise the import to always resolve .marked.
 #      b) Replace the pager(…) call with process.stdout.write(…) so output
 #         goes straight to stdout in a non-TTY container rather than spawning
 #         a pager process that would block or error.
-# 4. Purge the npm cache so it is not copied into the layer.
-RUN npm install -g "mdless@${MDLESS_VERSION}"
+# 5. Purge the npm cache so it is not copied into the layer.
+RUN npm install -g --omit=dev "mdless@${MDLESS_VERSION}"
 
 WORKDIR /usr/local/lib/node_modules/mdless
 
-# Replace bundled marked with the patched version and patch index.js for
-# marked v4+ API compatibility and non-TTY stdout output.
-RUN npm install --omit=dev "marked@${MARKED_VERSION}" \
+RUN npm install --omit=dev \
+        "marked@${MARKED_VERSION}" \
+        "tar@${TAR_VERSION}" \
+        "minimatch@${MINIMATCH_VERSION}" \
+        "glob@${GLOB_VERSION}" \
     && node -e 'const fs=require("fs"); const file="index.js"; let source=fs.readFileSync(file,"utf8"); const markedReplacement=["var markedModule = require(\x27marked\x27);", "var marked = markedModule.marked || markedModule;"].join("\n"); source=source.replace("var marked = require(\x27marked\x27);", markedReplacement); source=source.replace("    pager(markedUp);", "    process.stdout.write(markedUp);"); fs.writeFileSync(file, source);' \
     && npm cache clean --force >/dev/null 2>&1
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
 # Minimal runtime image — no build tools, no npm cache, no layer history
 # from the builder stage.
-FROM node:${NODE_VERSION}-alpine${ALPINE_VERSION}
+FROM node:${NODE_VERSION}
 
 # Expose build metadata as environment variables for runtime inspection.
 # This helps with audit/debug workflows where image provenance and component
 # versions need to be observable from container metadata.
 ARG NODE_VERSION
 ENV NODE_VERSION=${NODE_VERSION}
-
-ARG ALPINE_VERSION
-ENV ALPINE_VERSION=${ALPINE_VERSION}
 
 ARG MDLESS_VERSION
 ENV MDLESS_VERSION=${MDLESS_VERSION}
