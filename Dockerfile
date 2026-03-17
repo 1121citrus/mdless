@@ -13,16 +13,15 @@
 # NODE_VERSION / ALPINE_VERSION: builder base image coordinates.
 ARG NODE_VERSION=22
 ARG ALPINE_VERSION=3.22
+
 # TODO: Pin to a specific release (e.g. 0.0.33) rather than "latest" for
 # reproducible, supply-chain-safe builds.  Check https://www.npmjs.com/package/mdless
 # for the current stable release and set IMAGE_TAG accordingly.
 ARG MDLESS_VERSION=latest
+
 # MARKED_VERSION: mdless ships an older, vulnerable version of the marked
 # renderer; this arg controls the replacement version installed below.
 ARG MARKED_VERSION=4.3.0
-# RUNTIME_IMAGE: runtime base image. Defaults to the official Node alpine
-# variant, which shares the same major.minor as the builder stage.
-ARG RUNTIME_IMAGE=node:${NODE_VERSION}-alpine${ALPINE_VERSION}
 
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
 # Full Alpine + npm toolchain used only to install and patch the mdless package.
@@ -55,7 +54,7 @@ RUN npm install --omit=dev "marked@${MARKED_VERSION}" \
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
 # Minimal runtime image — no build tools, no npm cache, no layer history
 # from the builder stage.
-FROM ${RUNTIME_IMAGE}
+FROM node:${NODE_VERSION}-alpine${ALPINE_VERSION}
 
 # Expose build metadata as environment variables for runtime inspection.
 # This helps with audit/debug workflows where image provenance and component
@@ -80,8 +79,7 @@ WORKDIR /workspace
 COPY --from=builder /usr/local/lib/node_modules/mdless /usr/local/lib/node_modules/mdless
 COPY docker-entrypoint.mjs /usr/local/bin/docker-entrypoint.mjs
 
-# Drop to a non-root numeric UID.  Chainguard's node image already runs as
-# non-root by default; this makes the constraint explicit and image-portable.
+# Drop to a non-root numeric UID, making the constraint explicit and portable.
 ARG UID=10001
 USER ${UID}:${UID}
 
