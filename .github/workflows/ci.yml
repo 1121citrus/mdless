@@ -45,3 +45,28 @@ jobs:
       - name: Run integration test suite
         # test/run-tests builds the image (tag: test) then runs all checks.
         run: sh test/run-tests
+
+  # ── Security ──────────────────────────────────────────────────────────────────
+  security:
+    name: Security scanning
+    needs: build-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN
+          args: --ignorefile ./.trivyignore
+
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif

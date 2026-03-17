@@ -12,7 +12,7 @@
 # ── Build-time arguments ──────────────────────────────────────────────────────
 # NODE_VERSION / ALPINE_VERSION: builder base image coordinates.
 ARG NODE_VERSION=22
-ARG ALPINE_VERSION=3.22
+ARG ALPINE_VERSION=3.23
 
 # TODO: Pin to a specific release (e.g. 0.0.33) rather than "latest" for
 # reproducible, supply-chain-safe builds.  Check https://www.npmjs.com/package/mdless
