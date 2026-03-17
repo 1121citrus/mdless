@@ -32,7 +32,9 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 echo "[INFO] Building Docker image"
-docker buildx build --load --provenance=true --sbom=true -t "${IMAGE}" . >/dev/null
+# Detect the current platform for --load with provenance (manifest lists not supported with --load)
+PLATFORM="linux/$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')"
+docker buildx build --load --platform "${PLATFORM}" --provenance=true --sbom=true -t "${IMAGE}" . >/dev/null
 
 echo "[INFO] Test 1: file argument renders markdown"
 file_output=$(docker run --rm -v "$(pwd)/test:/workspace:ro" "${IMAGE}" /workspace/sample.md)
