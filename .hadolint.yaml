@@ -5,5 +5,7 @@ failure-threshold: warning
 
 ignore:
   # FROM uses an ARG for the runtime image to allow caller override.
-  # The variable is validated in the build script; the indirection is intentional.
+  # The ARG default is an explicitly-tagged image; hadolint cannot evaluate
+  # ARG values at parse time so both tag-related rules are suppressed here.
+  - DL3006  # always tag explicitly (triggered by ARG-substituted FROM)
   - DL3007  # using latest tag (triggered by ARG-substituted FROM)
