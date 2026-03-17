@@ -34,14 +34,7 @@ fi
 echo "[INFO] Building Docker image"
 # Build with provenance and SBOM, using docker output type to load into local daemon
 # This avoids manifest list issues while preserving attestations
-ARCH=$(uname -m)
-case "${ARCH}" in
-    x86_64)   PLATFORM="linux/amd64" ;;
-    aarch64)  PLATFORM="linux/arm64" ;;
-    armv7l)   PLATFORM="linux/arm/v7" ;;
-    *)        PLATFORM="linux/${ARCH}" ;;
-esac
-docker buildx build --output type=docker,name="${IMAGE}" --platform "${PLATFORM}" --provenance=true --sbom=true . >/dev/null
+docker buildx build --output type=docker,name="${IMAGE}" --provenance=true --sbom=true . >/dev/null
 
 echo "[INFO] Test 1: file argument renders markdown"
 file_output=$(docker run --rm -v "$(pwd)/test:/workspace:ro" "${IMAGE}" /workspace/sample.md)
