@@ -73,7 +73,7 @@ fi
 
 # Use buildx explicitly so provenance/SBOM flags are consistently supported.
 docker buildx build \
-    ${BUILD_FLAG} \
+    "${BUILD_FLAG}" \
     --provenance="mode=${PROVENANCE_MODE}" \
     --sbom="${SBOM_ATTESTATION}" \
     -t "${IMAGE_NAME}:${IMAGE_TAG}" \

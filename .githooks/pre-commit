@@ -1,0 +1,67 @@
+#!/bin/sh
+#
+# Pre-commit hook: lint shell scripts, Dockerfile, and Node.js source.
+#
+# Install once per clone:
+#   git config core.hooksPath .githooks
+#
+# Tools used (skipped gracefully when not installed):
+#   shellcheck  https://github.com/koalaman/shellcheck
+#   hadolint    https://github.com/hadolint/hadolint
+#   node        https://nodejs.org
+
+set -e
+
+lint_status=0
+
+hadolint () { 
+    docker run --rm -i hadolint/hadolint "${@}"
+}
+
+node() {
+    docker run --rm -i --entrypoint node node:current-alpine "${@}"
+}
+
+shellcheck() { 
+    docker run --rm -v "$(pwd):/mnt" koalaman/shellcheck:stable "${@}"
+}
+
+staged() {
+    git diff --cached --name-only | grep -qF "$1"
+}
+
+# ── Shell scripts ─────────────────────────────────────────────────────────────
+if command -v shellcheck >/dev/null 2>&1; then
+    for f in build test/run-tests; do
+        if staged "${f}"; then
+            printf '[pre-commit] shellcheck %s\n' "${f}"
+            shellcheck -S warning "${f}" || lint_status=1
+        fi
+    done
+else
+    echo "[pre-commit] SKIP shellcheck (not installed)"
+fi
+
+# ── Dockerfile ────────────────────────────────────────────────────────────────
+if staged "Dockerfile"; then
+    if command -v hadolint >/dev/null 2>&1; then
+        echo "[pre-commit] hadolint Dockerfile"
+        hadolint Dockerfile || lint_status=1
+    else
+        echo "[pre-commit] SKIP hadolint (not installed)"
+    fi
+fi
+
+# ── Node.js syntax ────────────────────────────────────────────────────────────
+if command -v node >/dev/null 2>&1; then
+    # Loop over staged .mjs files; word-splitting is intentional here.
+    # shellcheck disable=SC2044
+    for f in $(git diff --cached --name-only | grep '\.mjs$'); do
+        printf '[pre-commit] node --check %s\n' "${f}"
+        node --check "${f}" || lint_status=1
+    done
+else
+    echo "[pre-commit] SKIP node syntax check (not installed)"
+fi
+
+exit "${lint_status}"
