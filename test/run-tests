@@ -32,9 +32,16 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 echo "[INFO] Building Docker image"
-# Detect the current platform for --load with provenance (manifest lists not supported with --load)
-PLATFORM="linux/$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')"
-docker buildx build --load --platform "${PLATFORM}" --provenance=true --sbom=true -t "${IMAGE}" . >/dev/null
+# Build with provenance and SBOM, using docker output type to load into local daemon
+# This avoids manifest list issues while preserving attestations
+ARCH=$(uname -m)
+case "${ARCH}" in
+    x86_64)   PLATFORM="linux/amd64" ;;
+    aarch64)  PLATFORM="linux/arm64" ;;
+    armv7l)   PLATFORM="linux/arm/v7" ;;
+    *)        PLATFORM="linux/${ARCH}" ;;
+esac
+docker buildx build --output type=docker,name="${IMAGE}" --platform "${PLATFORM}" --provenance=true --sbom=true . >/dev/null
 
 echo "[INFO] Test 1: file argument renders markdown"
 file_output=$(docker run --rm -v "$(pwd)/test:/workspace:ro" "${IMAGE}" /workspace/sample.md)
