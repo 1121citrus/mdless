@@ -3,8 +3,12 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   # ── Lint ────────────────────────────────────────────────────────────────────
@@ -13,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
       - name: ShellCheck
         uses: ludeeus/action-shellcheck@2.0.0
@@ -39,7 +43,7 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -48,9 +52,11 @@ jobs:
         # test/run-tests builds the image (tag: test) then runs all checks.
         run: sh test/run-tests
 
-  # ── Security ──────────────────────────────────────────────────────────────────
-  security:
-    name: Security scanning
+  # ── Security scan ─────────────────────────────────────────────────────────────
+  # Filesystem scan — results uploaded to GitHub Security tab.
+  # Non-blocking: findings are visible but do not prevent publication.
+  scan:
+    name: Security scan
     needs: build-test
     runs-on: ubuntu-latest
     permissions:
@@ -59,10 +65,10 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           scan-type: fs
           scan-ref: .
@@ -77,3 +83,54 @@ jobs:
         continue-on-error: true
         with:
           sarif_file: trivy-results.sarif
+
+  # ── Build & push ─────────────────────────────────────────────────────────────
+  # Triggered only by version tags (v1.2.3, v1.2, v1).
+  # v1.2.3 → 1121citrus/mdless:1.2.3, :1.2, :1, :latest
+  push:
+    name: Build & push
+    needs: build-test
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Multi-arch: arm64 emulation via QEMU.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Derive image tags and OCI labels from the git tag.
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: 1121citrus/mdless
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Build multi-arch image and push with provenance + SBOM attestations.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
