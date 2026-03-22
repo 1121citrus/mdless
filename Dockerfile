@@ -92,6 +92,12 @@ WORKDIR /workspace
 COPY --from=builder /usr/local/lib/node_modules/mdless /usr/local/lib/node_modules/mdless
 COPY docker-entrypoint.mjs /usr/local/bin/docker-entrypoint.mjs
 
+# Remove npm from the runtime image to eliminate bundled CVEs (tar, minimatch).
+# mdless does not require npm at runtime; it is only needed during the build stage.
+# This eliminates CVE-2026-29786, CVE-2026-31802 (tar), and CVE-2026-27903,
+# CVE-2026-27904 (minimatch) that appear in npm's private /usr/local/lib/node_modules/npm/node_modules/.
+RUN rm -rf /usr/local/lib/node_modules/npm
+
 # Drop to a non-root numeric UID, making the constraint explicit and portable.
 ARG UID=10001
 USER ${UID}:${UID}

@@ -49,6 +49,7 @@ No automation bumps the version — the tag is always a deliberate human decisio
 Builds the Docker image and runs the full integration test suite.
 
 - Executes `test/run-tests` which builds the image (tag: `test`) and runs all checks
+- Test coverage: file rendering, stdin rendering, no-input handling, help flags, argument passthrough, non-root runtime, empty stdin edge case, error code propagation, invalid markdown handling
 - `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` — suppresses GHA Node.js deprecation warnings
 
 ---

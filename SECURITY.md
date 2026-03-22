@@ -54,22 +54,16 @@ This document tracks known security vulnerabilities and remediation status.
   against mdless's glob dependency chain
 - **Reference**: <https://scout.docker.com/v/CVE-2026-26996>
 
-#### npm bundled package CVEs (tar, minimatch)
+#### npm bundled package CVEs (tar, minimatch) — REMEDIATED
 
-- **Component**: npm's own internal `node_modules` (`/usr/local/lib/node_modules/npm/node_modules/`)
+- **Component**: npm's own internal `node_modules` (formerly at `/usr/local/lib/node_modules/npm/node_modules/`)
 - **Affected Packages**: tar@7.5.9, minimatch@10.2.2
-- **Description**: The CVE overrides in the Dockerfile correctly upgrade tar and
-  minimatch within mdless's own dependency tree. However, npm ships its own
-  private copies of these packages for its internal use. These appear in trivy
-  image scans as:
+- **Description**: npm ships its own private copies of tar and minimatch for its internal use. These contained:
   - tar@7.5.9 — CVE-2026-29786, CVE-2026-31802 (path traversal)
   - minimatch@10.2.2 — CVE-2026-27903, CVE-2026-27904 (ReDoS)
-- **Status**: npm is present in the runtime image but is not invoked during
-  mdless operation. The container runs as uid 10001. Upgrading npm's internal
-  deps requires replacing the entire npm package, which risks breaking npm
-  if an incompatible version is forced.
-- **Mitigation**: npm is not called at runtime; the vulnerable code paths are
-  not reachable through mdless's markdown-rendering workflow
+- **Status**: ELIMINATED via `Dockerfile` RUN directive (line: `RUN rm -rf /usr/local/lib/node_modules/npm`)
+- **Mitigation**: npm is not used at runtime in the container. The entrypoint only executes mdless and the wrapper, neither of which invoke npm. Removing npm's directory entirely eliminates these CVEs without breaking any functionality.
+- **Impact**: Runtime image is smaller and completely free of npm-bundled CVEs.
 
 ---
 

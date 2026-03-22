@@ -31,18 +31,23 @@ cat README.md | docker run --rm -i 1121citrus/mdless:latest
 ./build
 ```
 
-Override tags/values when needed:
+Override version or registry when needed:
 
 ```sh
-IMAGE_NAME=1121citrus/mdless IMAGE_TAG=dev ./build
+./build --version dev
+./build --registry <username>
 ```
 
-The build uses `docker buildx build` with max-mode provenance and SBOM attestations enabled by default.
-
-Choose the output mode when needed:
+For detailed build options:
 
 ```sh
-BUILD_OUTPUT=push IMAGE_NAME=1121citrus/mdless IMAGE_TAG=latest ./build
+./build --help
+```
+
+Push to registry (requires authentication):
+
+```sh
+./build --push --version 1.2.3
 ```
 
 ## Test
@@ -51,12 +56,22 @@ BUILD_OUTPUT=push IMAGE_NAME=1121citrus/mdless IMAGE_TAG=latest ./build
 sh test/run-tests
 ```
 
-The test suite validates file rendering, stdin rendering, no-input usage behavior, and argument pass-through.
+The test suite validates:
+- CLI-first constraint (no docker-compose.yml)
+- File argument rendering
+- stdin rendering
+- No-input usage behavior (exit code 2)
+- Help flag passthrough
+- Argument passthrough
+- Non-root runtime (uid 10001)
+- Empty stdin handling
+- Error code propagation
+- Invalid markdown graceful handling
 
 ## Image notes
 
-- Builder image: `node:<version>-alpine<version>`
-- Runtime image: `cgr.dev/chainguard/node:latest`
+- Builder image: Node.js with Alpine (build stage only)
+- Runtime image: Node.js slim on Debian Bookworm
 - Runtime user: numeric non-root uid `10001`
 - Entrypoint: `docker-entrypoint.mjs` Node wrapper
 - Supply-chain metadata: provenance (`mode=max`) and SBOM attestations via Buildx

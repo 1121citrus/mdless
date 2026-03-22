@@ -66,11 +66,28 @@ echo "[INFO] Test 6: container runs as non-root"
 user_id=$(docker run --rm --entrypoint node "${IMAGE}" -p 'process.getuid()')
 [ "${user_id}" = "10001" ] || fail "non-root runtime: expected uid 10001, got ${user_id}"
 
+echo "[INFO] Test 7: empty piped stdin with no args returns usage and exit code 2"
+empty_stdin_exit=0
+empty_stdin_output=$(printf '' | docker run --rm -i "${IMAGE}" 2>&1) || empty_stdin_exit=$?
+[ ${empty_stdin_exit} -eq 2 ] || fail "empty-stdin: expected exit code 2, got ${empty_stdin_exit}"
+assert_contains "${empty_stdin_output}" "Usage:" "empty-stdin usage"
+
+echo "[INFO] Test 8: mdless with non-existent file returns non-zero exit code"
+if docker run --rm "${IMAGE}" /nonexistent/file.md >/dev/null 2>&1; then
+    fail "mdless-nonexistent: expected non-zero exit code for missing file"
+fi
+# Expected: mdless returns non-zero; wrapper propagates it correctly
+
+echo "[INFO] Test 9: invalid markdown renders successfully (mdless handles gracefully)"
+invalid_md_output=$(printf '[[broken [[ markdown {{{' | docker run --rm -i "${IMAGE}")
+# mdless renders gracefully even with malformed input; just verify output is produced
+[ -n "${invalid_md_output}" ] || fail "invalid-markdown: expected output, got empty string"
+
 # Test image in the CI workflow can't have its provenance attested by Docker Scout because the
 # image is built locally and not pushed to a registry, so this test is skipped in the CI context.
-# echo "[INFO] Test 7: Docker Scout sees provenance attestation"
+# echo "[INFO] Test 10: Docker Scout sees provenance attestation"
 # if ! command -v docker >/dev/null 2>&1 || ! docker scout version >/dev/null 2>&1; then
-#     echo "[SKIP] Test 7: docker scout not available — skipping provenance attestation check"
+#     echo "[SKIP] Test 10: docker scout not available — skipping provenance attestation check"
 # else
 #     if ! scout_output=$(docker scout quickview "local://${IMAGE}" 2>&1); then
 #         fail "docker scout quickview failed"
