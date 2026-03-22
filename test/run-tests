@@ -5,7 +5,7 @@
 set -eu
 
 IMAGE_NAME="${IMAGE_NAME:-1121citrus/mdless}"
-IMAGE_TAG="${IMAGE_TAG:-test}"
+IMAGE_TAG="${IMAGE_TAG:-${TAG:-test}}"
 IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
 
 fail() {
@@ -31,8 +31,14 @@ if ! docker info >/dev/null 2>&1; then
     fail "Docker daemon is not running"
 fi
 
-echo "[INFO] Building Docker image"
-docker buildx build --load --provenance=false --sbom=false -t "${IMAGE}" . >/dev/null
+# If TAG is explicitly provided (from build script), skip building—the image should
+# already exist. Otherwise, build it (for standalone test runs).
+if [ -z "${TAG:-}" ]; then
+    echo "[INFO] Building Docker image"
+    docker buildx build --load --provenance=false --sbom=false -t "${IMAGE}" . >/dev/null
+else
+    echo "[INFO] Using pre-built image: ${IMAGE}"
+fi
 
 echo "[INFO] Test 1: file argument renders markdown"
 file_output=$(docker run --rm -v "$(pwd)/test:/workspace:ro" "${IMAGE}" /workspace/sample.md)

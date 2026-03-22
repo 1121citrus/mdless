@@ -1,82 +1,379 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
-# Build script for mdless Docker image.
+# build — local CI equivalent for mdless.
 #
-# This script standardizes local/CI image builds around buildx so supply-chain
-# metadata is always available by default.
+# Copyright (C) 2025–2026 James Hanlon [mailto:jim@hanlonsoftware.com]
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Default behavior:
-# - Loads the resulting image into the local Docker image store.
-# - Emits max-mode provenance attestations.
-# - Emits SBOM attestations.
+# SYNOPSIS
+#   build [--push] [--version VERSION] [--platform PLATFORMS]
+#         [--registry REGISTRY] [--no-sbom] [--no-provenance]
+#         [--no-lint] [--no-test] [--no-scan]
+#         [--advise [ADVISEMENTS]] [--no-advise]
+#         [--dry-run] [--help]
 #
-# Environment variables:
-# - IMAGE_NAME: repository/name for the output image.
-# - IMAGE_TAG: tag for the output image.
-# - BUILD_CONTEXT: docker build context directory.
-# - BUILD_OUTPUT: `load` (local daemon) or `push` (registry).
-# - PROVENANCE_MODE: `max`, `min`, or `false`.
-# - SBOM_ATTESTATION: `true` or `false`.
+# OPTIONS
+#   --push              Push the image to the registry after a successful build.
+#                       Omitting this flag builds locally only (the default).
+#   --version VERSION   Tag the image with this version string, e.g. "1.2.3".
+#                       When omitted the image is tagged "dev-<git-short-sha>"
+#                       so that local builds are never confused with released
+#                       artifacts.
+#   --platform PLATFORMS
+#                       Comma-separated list of target platforms for --push.
+#                       Default: linux/amd64,linux/arm64
+#   --registry REGISTRY Docker Hub username / registry prefix.
+#                       Default: 1121citrus
+#   --no-sbom           Skip generating an SBOM attestation (push only).
+#   --no-provenance     Skip generating a provenance attestation (push only).
+#   --no-lint           Skip hadolint Dockerfile check and shellcheck.
+#   --no-test           Skip running the test suite.
+#   --no-scan           Skip the Trivy vulnerability scan (gating).
+#                       Also skips advisements (stage 5) by default; pass --advise
+#                       after --no-scan to keep the advisory scans.
+#   --advise [ADVISEMENTS]
+#                       Run advisory scans. Optional comma-delimited list of advisements:
+#                       'grype', 'scout', 'dive', or any combination, e.g. 'grype,scout,dive'
+#                       (default if no list given: 'grype,scout').
+#   --no-advise         Skip all advisory scans (Grype, Docker Scout, and Dive).
+#   --dry-run           Print each command without executing it.
+#   --help              Print this message and exit.
+#
+# ENVIRONMENT
+#   The following env-var overrides take precedence over the defaults above but
+#   are themselves overridden by the matching CLI flag:
+#     BUILD_VERSION, BUILD_PUSH, BUILD_PLATFORM, BUILD_REGISTRY
+#     BUILD_LINT, BUILD_TEST, BUILD_SCAN, BUILD_ADVISE
+#
+# PREREQUISITES
+#   • docker with the buildx plugin (≥ 0.10)
+#   • node on PATH (for syntax check)
+#   • shellcheck on PATH (for lint stage)
+#   • For --push: docker login <registry> must already be authenticated, plus
+#     QEMU binfmt helpers for cross-platform builds:
+#       docker run --rm --privileged tonistiigi/binfmt --install all
+#
+# STAGES (run in order; each can be skipped with --no-<stage>)
+#   1. Lint   — hadolint (Dockerfile) + shellcheck + node --check
+#   2. Build  — single-platform --load into local Docker daemon
+#   3. Test   — test/run-tests against the locally loaded image
+#   4. Scan   — Trivy CRITICAL/HIGH image scan (blocking)
+#   5. Advise — multiple advisory scans (advisory only; never blocks the build)
+#              a) Grype   — full-severity scan
+#              b) Scout   — Docker Scout CVE scan
+#              c) Dive    — image layer analysis
+#   6. Push   — multi-platform build + push to registry (only with --push)
+#
+# NOTES
+#   The test stage (test/run-tests) runs tests against the image built in the
+#   Build stage.  Each stage can be skipped individually.
+#
+# EXAMPLES
+#   # Local dev cycle — lint, build, test, scan, advise
+#   ./build
+#
+#   # Release build — push version 1.2.3 and latest
+#   ./build --push --version 1.2.3
+#
+#   # Skip scan during fast iteration
+#   ./build --no-scan
+#
+#   # Dry-run: just print each command
+#   ./build --dry-run
+#
+##ENDOFHELP
 
-set -e
+set -euo pipefail
 
-IMAGE_NAME="${IMAGE_NAME:-1121citrus/mdless}"
-IMAGE_TAG="${IMAGE_TAG:-latest}"
-BUILD_CONTEXT="${BUILD_CONTEXT:-.}"
-BUILD_OUTPUT="${BUILD_OUTPUT:-load}"
-PROVENANCE_MODE="${PROVENANCE_MODE:-max}"
-SBOM_ATTESTATION="${SBOM_ATTESTATION:-true}"
+# ---------------------------------------------------------------------------
+# Defaults — may be overridden by environment variables or CLI flags.
+# ---------------------------------------------------------------------------
+PUSH=${BUILD_PUSH:-false}
+VERSION=${BUILD_VERSION:-}
+PLATFORMS=${BUILD_PLATFORM:-linux/amd64,linux/arm64}
+REGISTRY=${BUILD_REGISTRY:-1121citrus}
+SBOM=true
+PROVENANCE=true
+LINT=${BUILD_LINT:-true}
+TEST=${BUILD_TEST:-true}
+SCAN=${BUILD_SCAN:-true}
+ADVISE_GRYPE=true
+ADVISE_SCOUT=true
+ADVISE_DIVE=false
+_ADVISE_EXPLICIT=false   # set true when --advise or --no-advise is passed
+DRY_RUN=false
 
-case "${BUILD_OUTPUT}" in
-    load|push)
-        # Valid. Resolved below to the matching buildx flag.
-        ;;
-    *)
-        echo "[ERROR] BUILD_OUTPUT must be 'load' or 'push'" >&2
-        exit 1
-        ;;
-esac
+IMAGE_NAME=mdless
 
-case "${PROVENANCE_MODE}" in
-    max|min|false)
-        # Valid. Passed directly to `--provenance=mode=...`.
-        ;;
-    *)
-        echo "[ERROR] PROVENANCE_MODE must be 'max', 'min', or 'false'" >&2
-        exit 1
-        ;;
-esac
+# Tool image references — update these to pin analyser versions project-wide.
+HADOLINT_IMAGE=hadolint/hadolint
+HADOLINT_TAG=v2.12.0
+SHELLCHECK_IMAGE=koalaman/shellcheck
+SHELLCHECK_TAG=v0.10.0
+TRIVY_IMAGE=aquasec/trivy
+TRIVY_TAG=0.62.1
+GRYPE_IMAGE=anchore/grype
+GRYPE_TAG=v0.87.0
+NODE_IMAGE=node
+NODE_TAG=22-alpine
+DIVE_IMAGE=wagoodman/dive
+DIVE_TAG=latest
 
-case "${SBOM_ATTESTATION}" in
-    true|false)
-        # Valid boolean accepted by buildx `--sbom` flag.
-        ;;
-    *)
-        echo "[ERROR] SBOM_ATTESTATION must be 'true' or 'false'" >&2
-        exit 1
-        ;;
-esac
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --push)             PUSH=true ;;
+        --version)          VERSION="$2"; shift ;;
+        --platform)         PLATFORMS="$2"; shift ;;
+        --registry)         REGISTRY="$2"; shift ;;
+        --no-sbom)          SBOM=false ;;
+        --no-provenance)    PROVENANCE=false ;;
+        --no-lint)          LINT=false ;;
+        --no-test)          TEST=false ;;
+        --no-scan)          SCAN=false ;;
+        --advise)
+            _ADVISE_EXPLICIT=true
+            # Check if next arg looks like an advisement list (no -- prefix)
+            if [[ $# -gt 1 && ! "$2" =~ ^-- ]]; then
+                advisements="$2"; shift
+            else
+                advisements="grype,scout"
+            fi
+            # Parse the comma-delimited list
+            ADVISE_GRYPE=false
+            ADVISE_SCOUT=false
+            ADVISE_DIVE=false
+            IFS=',' read -ra adv_list <<< "$advisements"
+            for adv in "${adv_list[@]}"; do
+                case "$adv" in
+                    grype)  ADVISE_GRYPE=true ;;
+                    scout)  ADVISE_SCOUT=true ;;
+                    dive)   ADVISE_DIVE=true ;;
+                    *)      echo "Unknown advisement: $adv" >&2; exit 1 ;;
+                esac
+            done
+            ;;
+        --no-advise)
+            ADVISE_GRYPE=false
+            ADVISE_SCOUT=false
+            ADVISE_DIVE=false
+            _ADVISE_EXPLICIT=true
+            ;;
+        --dry-run)          DRY_RUN=true ;;
+        --help|-h)
+            sed -n '3,/^##ENDOFHELP/p' "$0" | grep '^#' | head -n -1 | sed 's/^# \{0,1\}//'
+            exit 0 ;;
+        *)
+            echo "Unknown option: $1" >&2
+            exit 1 ;;
+    esac
+    shift
+done
 
-echo "[INFO] Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}"
-echo "[INFO] Build context: ${BUILD_CONTEXT}"
-echo "[INFO] Build output: ${BUILD_OUTPUT}"
-echo "[INFO] Provenance mode: ${PROVENANCE_MODE}"
-echo "[INFO] SBOM attestation: ${SBOM_ATTESTATION}"
-
-if [ "${BUILD_OUTPUT}" = "push" ]; then
-    # Push image and attestations directly to the configured registry.
-    BUILD_FLAG="--push"
-else
-    # Load built image into local daemon for local testing/scanning.
-    BUILD_FLAG="--load"
+# --no-scan implies --no-advise unless --advise was given explicitly.
+if [[ "${SCAN}" == "false" && "${_ADVISE_EXPLICIT}" == "false" ]]; then
+    ADVISE_GRYPE=false
+    ADVISE_SCOUT=false
+    ADVISE_DIVE=false
 fi
 
-# Use buildx explicitly so provenance/SBOM flags are consistently supported.
-docker buildx build \
-    "${BUILD_FLAG}" \
-    --provenance="mode=${PROVENANCE_MODE}" \
-    --sbom="${SBOM_ATTESTATION}" \
-    -t "${IMAGE_NAME}:${IMAGE_TAG}" \
-    "${BUILD_CONTEXT}"
+# ---------------------------------------------------------------------------
+# Resolve the image version tag.
+# ---------------------------------------------------------------------------
+if [[ -z "${VERSION}" ]]; then
+    sha=$(git -C "$(dirname "$0")" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    VERSION="dev-${sha}"
+fi
 
-echo "[INFO] Build complete: ${IMAGE_NAME}:${IMAGE_TAG}"
+# ---------------------------------------------------------------------------
+# Construct the tag list.
+# "latest" is only added for non-dev (release) builds that will be pushed.
+# ---------------------------------------------------------------------------
+full_image="${REGISTRY}/${IMAGE_NAME}"
+tags=("--tag" "${full_image}:${VERSION}")
+if [[ "${PUSH}" == "true" && "${VERSION}" != dev-* ]]; then
+    tags+=("--tag" "${full_image}:latest")
+fi
+
+# ---------------------------------------------------------------------------
+# Helper: execute a command or print it for --dry-run.
+# ---------------------------------------------------------------------------
+run() {
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        echo "[DRY RUN]" "$@" >&2
+    else
+        "$@"
+    fi
+}
+
+# Script directory for build context and relative paths.
+script_dir=$(dirname "$(readlink -f "$0")")
+
+echo "Image:     ${full_image}:${VERSION}" >&2
+echo "Platforms: ${PLATFORMS}" >&2
+echo "Push:      ${PUSH}" >&2
+echo "" >&2
+
+# ---------------------------------------------------------------------------
+# Stage 1: Lint
+# ---------------------------------------------------------------------------
+if [[ "${LINT}" == "true" ]]; then
+    echo "==> Stage 1: Lint" >&2
+
+    echo "    hadolint Dockerfile" >&2
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        echo "[DRY RUN] docker run --rm -i hadolint/hadolint < Dockerfile" >&2
+    else
+        docker run --rm -i \
+            -v "${script_dir}/.hadolint.yaml:/.hadolint.yaml:ro" \
+            --entrypoint /bin/hadolint \
+            "${HADOLINT_IMAGE}:${HADOLINT_TAG}" \
+            --config /.hadolint.yaml \
+            - < "${script_dir}/Dockerfile"
+    fi
+
+    echo "    shellcheck build test/run-tests" >&2
+    (cd "${script_dir}" && run docker run --rm \
+        -v "${script_dir}:/mnt" \
+        "${SHELLCHECK_IMAGE}:${SHELLCHECK_TAG}" \
+        build \
+        test/run-tests)
+
+    echo "    node --check docker-entrypoint.mjs" >&2
+    run docker run --rm \
+        -v "${script_dir}/docker-entrypoint.mjs:/app/docker-entrypoint.mjs:ro" \
+        "${NODE_IMAGE}:${NODE_TAG}" \
+        node --check /app/docker-entrypoint.mjs
+fi
+
+# ---------------------------------------------------------------------------
+# Stage 2: Build (local, single-platform)
+# ---------------------------------------------------------------------------
+echo "==> Stage 2: Build ${full_image}:${VERSION}" >&2
+
+host_platform=$(docker info --format '{{.OSType}}/{{.Architecture}}' 2>/dev/null \
+    || echo "linux/amd64")
+
+build_cmd=(
+    docker buildx build
+    --platform "${host_platform}"
+    --tag "${full_image}:${VERSION}"
+    --load
+)
+
+if [[ -n "${BUILD_EXTRA_ARGS:-}" ]]; then
+    # shellcheck disable=SC2206
+    build_cmd+=(${BUILD_EXTRA_ARGS})
+fi
+
+build_cmd+=("${script_dir}")
+
+if [[ "${DRY_RUN}" == "true" ]]; then
+    echo "[DRY RUN] Would execute:" >&2
+    printf '  %s \\\n' "${build_cmd[@]}"
+else
+    "${build_cmd[@]}"
+fi
+
+# ---------------------------------------------------------------------------
+# Stage 3: Test
+# ---------------------------------------------------------------------------
+# test/run-tests runs tests against the image built in Stage 2.
+if [[ "${TEST}" == "true" ]]; then
+    echo "==> Stage 3: Test" >&2
+    (cd "${script_dir}" && TAG="${VERSION}" run sh test/run-tests)
+fi
+
+# ---------------------------------------------------------------------------
+# Stage 4: Scan (Trivy)
+# ---------------------------------------------------------------------------
+if [[ "${SCAN}" == "true" ]]; then
+    echo "==> Stage 4: Scan ${full_image}:${VERSION}" >&2
+    run docker run --rm \
+        -v /var/run/docker.sock:/var/run/docker.sock:ro \
+        "${TRIVY_IMAGE}:${TRIVY_TAG}" image \
+            --exit-code 1 \
+            --ignore-unfixed \
+            --severity HIGH,CRITICAL,MEDIUM,LOW \
+            "${full_image}:${VERSION}"
+fi
+
+# ---------------------------------------------------------------------------
+# Stage 5a: Advise (Grype — non-gating)
+# Runs a full-severity Grype scan and prints findings to the build log.
+# Never sets a non-zero exit code due to vulnerability findings; the build
+# continues regardless of what Grype reports.
+# ---------------------------------------------------------------------------
+if [[ "${ADVISE_GRYPE}" == "true" ]]; then
+    echo "==> Stage 5a: Advise (Grype) ${full_image}:${VERSION}" >&2
+    run docker run --rm \
+        -v /var/run/docker.sock:/var/run/docker.sock:ro \
+        "${GRYPE_IMAGE}:${GRYPE_TAG}" \
+            "${full_image}:${VERSION}" || true
+fi
+
+# ---------------------------------------------------------------------------
+# Stage 5b: Advise (Docker Scout — non-gating)
+# Runs Docker Scout and prints findings to the build log.
+# Never sets a non-zero exit code; the build continues regardless.
+# ---------------------------------------------------------------------------
+if [[ "${ADVISE_SCOUT}" == "true" ]]; then
+    echo "==> Stage 5b: Advise (Scout) ${full_image}:${VERSION}" >&2
+    run docker scout cves "${full_image}:${VERSION}" || true
+fi
+
+# ---------------------------------------------------------------------------
+# Stage 5c: Advise (Dive — non-gating)
+# Analyzes image layers for bloat, optimization opportunities, and composition.
+# Never sets a non-zero exit code; the build continues regardless.
+# ---------------------------------------------------------------------------
+if [[ "${ADVISE_DIVE}" == "true" ]]; then
+    echo "==> Stage 5c: Advise (Dive) ${full_image}:${VERSION}" >&2
+    run docker run --rm \
+        -v /var/run/docker.sock:/var/run/docker.sock:ro \
+        "${DIVE_IMAGE}:${DIVE_TAG}" \
+            --ci \
+            "${full_image}:${VERSION}" || true
+fi
+
+# ---------------------------------------------------------------------------
+# Stage 6: Push (multi-platform)
+# Only runs when --push is specified.
+# ---------------------------------------------------------------------------
+if [[ "${PUSH}" == "true" ]]; then
+    echo "==> Stage 6: Push ${full_image}:${VERSION} (${PLATFORMS})" >&2
+
+    if [[ "${PROVENANCE}" == "true" ]]; then
+        provenance_flag="--provenance=mode=max"
+    else
+        provenance_flag="--provenance=false"
+    fi
+
+    push_cmd=(
+        docker buildx build
+        --platform "${PLATFORMS}"
+        "${tags[@]}"
+        "--sbom=${SBOM}"
+        "${provenance_flag}"
+        --push
+    )
+
+    if [[ -n "${BUILD_EXTRA_ARGS:-}" ]]; then
+        # shellcheck disable=SC2206
+        push_cmd+=(${BUILD_EXTRA_ARGS})
+    fi
+
+    push_cmd+=("${script_dir}")
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        echo "[DRY RUN] Would execute:" >&2
+        printf '  %s \\\n' "${push_cmd[@]}"
+    else
+        "${push_cmd[@]}"
+    fi
+fi
+
+echo "" >&2
+echo "Done: ${full_image}:${VERSION}" >&2
