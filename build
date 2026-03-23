@@ -9,7 +9,8 @@
 #   build [--push] [--version VERSION] [--platform PLATFORMS]
 #         [--registry REGISTRY] [--no-sbom] [--no-provenance]
 #         [--no-lint] [--no-test] [--no-scan]
-#         [--advise [ADVISEMENTS]] [--no-advise]
+#         [--advise [ADVISEMENTS]] [--advice [ADVISEMENTS]] [--no-advise]
+#         [--cache CACHE_RULES]
 #         [--dry-run] [--help]
 #
 # OPTIONS
@@ -33,9 +34,14 @@
 #                       after --no-scan to keep the advisory scans.
 #   --advise [ADVISEMENTS]
 #                       Run advisory scans. Optional comma-delimited list of advisements:
-#                       'grype', 'scout', 'dive', or any combination, e.g. 'grype,scout,dive'
+#                       'grype', 'scout', 'dive', 'all', or any combination, e.g. 'grype,scout,dive'
 #                       (default if no list given: 'grype,scout').
+#   --advice [ADVISEMENTS]
+#                       Compatibility alias for --advise.
 #   --no-advise         Skip all advisory scans (Grype, Docker Scout, and Dive).
+#   --cache CACHE_RULES One-run cache controls for scanner DBs.
+#                       Rule format: 'reset=<targets>;skip-update=<targets>'
+#                       Targets: trivy, grype, all (comma-delimited)
 #   --dry-run           Print each command without executing it.
 #   --help              Print this message and exit.
 #
@@ -101,6 +107,10 @@ ADVISE_GRYPE=true
 ADVISE_SCOUT=true
 ADVISE_DIVE=false
 _ADVISE_EXPLICIT=false   # set true when --advise or --no-advise is passed
+CACHE_RESET_TRIVY=false
+CACHE_RESET_GRYPE=false
+CACHE_SKIP_UPDATE_TRIVY=false
+CACHE_SKIP_UPDATE_GRYPE=false
 DRY_RUN=false
 
 IMAGE_NAME=mdless
@@ -110,6 +120,8 @@ HADOLINT_IMAGE=hadolint/hadolint
 HADOLINT_TAG=v2.12.0
 SHELLCHECK_IMAGE=koalaman/shellcheck
 SHELLCHECK_TAG=v0.10.0
+MARKDOWNLINT_IMAGE=ghcr.io/igorshubovych/markdownlint-cli
+MARKDOWNLINT_TAG=v0.48.0
 TRIVY_IMAGE=aquasec/trivy
 TRIVY_TAG=0.62.1
 GRYPE_IMAGE=anchore/grype
@@ -117,7 +129,95 @@ GRYPE_TAG=v0.87.0
 NODE_IMAGE=node
 NODE_TAG=22-alpine
 DIVE_IMAGE=wagoodman/dive
-DIVE_TAG=latest
+DIVE_TAG=v0.13.1
+
+TRIVY_CACHE_VOLUME=mdless-trivy-cache
+GRYPE_CACHE_VOLUME=mdless-grype-cache
+
+# ---------------------------------------------------------------------------
+# Helpers: cache control parsing
+# ---------------------------------------------------------------------------
+set_cache_targets() {
+    local mode="$1"
+    local targets_csv="$2"
+    local target
+    IFS=',' read -ra _cache_targets <<< "${targets_csv}"
+
+    for target in "${_cache_targets[@]}"; do
+        case "${target}" in
+            trivy)
+                if [[ "${mode}" == "reset" ]]; then
+                    CACHE_RESET_TRIVY=true
+                elif [[ "${mode}" == "skip-update" ]]; then
+                    CACHE_SKIP_UPDATE_TRIVY=true
+                fi
+                ;;
+            grype)
+                if [[ "${mode}" == "reset" ]]; then
+                    CACHE_RESET_GRYPE=true
+                elif [[ "${mode}" == "skip-update" ]]; then
+                    CACHE_SKIP_UPDATE_GRYPE=true
+                fi
+                ;;
+            all)
+                if [[ "${mode}" == "reset" ]]; then
+                    CACHE_RESET_TRIVY=true
+                    CACHE_RESET_GRYPE=true
+                elif [[ "${mode}" == "skip-update" ]]; then
+                    CACHE_SKIP_UPDATE_TRIVY=true
+                    CACHE_SKIP_UPDATE_GRYPE=true
+                fi
+                ;;
+            *)
+                echo "Unknown cache target: ${target}" >&2
+                exit 1
+                ;;
+        esac
+    done
+}
+
+parse_cache_rules() {
+    local rules="$1"
+    local entry
+    local key
+    local value
+    IFS=';' read -ra _cache_rules <<< "${rules}"
+
+    for entry in "${_cache_rules[@]}"; do
+        key="${entry%%=*}"
+        value="${entry#*=}"
+        key="${key//[[:space:]]/}"
+        value="${value//[[:space:]]/}"
+
+        if [[ -z "${key}" && -z "${value}" ]]; then
+            continue
+        fi
+
+        if [[ "${entry}" != *=* || -z "${key}" || -z "${value}" ]]; then
+            echo "Invalid --cache rule: ${entry}" >&2
+            exit 1
+        fi
+
+        case "${key}" in
+            reset|skip-update)
+                set_cache_targets "${key}" "${value}"
+                ;;
+            *)
+                echo "Unknown --cache rule key: ${key}" >&2
+                exit 1
+                ;;
+        esac
+    done
+}
+
+reset_cache_db() {
+    local volume_name="$1"
+    # Reset the volume by removing all contents and recreating the directory structure
+    run docker run --rm \
+        -v "${volume_name}:/cache" \
+        alpine:3.21 \
+        sh -c "rm -rf /cache/* && mkdir -p /cache"
+}
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -133,7 +233,7 @@ while [[ $# -gt 0 ]]; do
         --no-lint)          LINT=false ;;
         --no-test)          TEST=false ;;
         --no-scan)          SCAN=false ;;
-        --advise)
+        --advise|--advice)
             _ADVISE_EXPLICIT=true
             # Check if next arg looks like an advisement list (no -- prefix)
             if [[ $# -gt 1 && ! "$2" =~ ^-- ]]; then
@@ -151,6 +251,7 @@ while [[ $# -gt 0 ]]; do
                     grype)  ADVISE_GRYPE=true ;;
                     scout)  ADVISE_SCOUT=true ;;
                     dive)   ADVISE_DIVE=true ;;
+                    all)    ADVISE_GRYPE=true; ADVISE_SCOUT=true; ADVISE_DIVE=true ;;
                     *)      echo "Unknown advisement: $adv" >&2; exit 1 ;;
                 esac
             done
@@ -160,6 +261,14 @@ while [[ $# -gt 0 ]]; do
             ADVISE_SCOUT=false
             ADVISE_DIVE=false
             _ADVISE_EXPLICIT=true
+            ;;
+        --cache)
+            if [[ $# -lt 2 || "$2" =~ ^-- ]]; then
+                echo "--cache requires CACHE_RULES" >&2
+                exit 1
+            fi
+            parse_cache_rules "$2"
+            shift
             ;;
         --dry-run)          DRY_RUN=true ;;
         --help|-h)
@@ -214,7 +323,26 @@ script_dir=$(dirname "$(readlink -f "$0")")
 echo "Image:     ${full_image}:${VERSION}" >&2
 echo "Platforms: ${PLATFORMS}" >&2
 echo "Push:      ${PUSH}" >&2
+echo "Trivy DB:  volume:${TRIVY_CACHE_VOLUME}" >&2
+echo "Grype DB:  volume:${GRYPE_CACHE_VOLUME}" >&2
 echo "" >&2
+
+if [[ "${CACHE_RESET_TRIVY}" == "true" ]]; then
+    echo "==> Cache: reset Trivy DB" >&2
+    reset_cache_db "${TRIVY_CACHE_VOLUME}"
+fi
+if [[ "${CACHE_RESET_GRYPE}" == "true" ]]; then
+    echo "==> Cache: reset Grype DB" >&2
+    reset_cache_db "${GRYPE_CACHE_VOLUME}"
+fi
+if [[ "${SCAN}" == "true" && "${CACHE_SKIP_UPDATE_TRIVY}" != "true" ]]; then
+    echo "==> Cache: warm Trivy DB" >&2
+    run docker run --rm \
+        -v "${TRIVY_CACHE_VOLUME}:/root/.cache/trivy" \
+        "${TRIVY_IMAGE}:${TRIVY_TAG}" image \
+            --quiet \
+            --download-db-only
+fi
 
 # ---------------------------------------------------------------------------
 # Stage 1: Lint
@@ -239,6 +367,7 @@ if [[ "${LINT}" == "true" ]]; then
         -v "${script_dir}:/mnt" \
         "${SHELLCHECK_IMAGE}:${SHELLCHECK_TAG}" \
         build \
+        test/staging \
         test/run-tests)
 
     echo "    node --check docker-entrypoint.mjs" >&2
@@ -246,6 +375,13 @@ if [[ "${LINT}" == "true" ]]; then
         -v "${script_dir}/docker-entrypoint.mjs:/app/docker-entrypoint.mjs:ro" \
         "${NODE_IMAGE}:${NODE_TAG}" \
         node --check /app/docker-entrypoint.mjs
+
+    echo "    markdownlint **/*.md" >&2
+    (cd "${script_dir}" && run docker run --rm \
+        -v "${script_dir}:/md:ro" \
+        --workdir /md \
+        "${MARKDOWNLINT_IMAGE}:${MARKDOWNLINT_TAG}" \
+        "**/*.md")
 fi
 
 # ---------------------------------------------------------------------------
@@ -291,12 +427,21 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "${SCAN}" == "true" ]]; then
     echo "==> Stage 4: Scan ${full_image}:${VERSION}" >&2
+    _trivy_extra_flags=()
+    if [[ "${CACHE_SKIP_UPDATE_TRIVY}" == "true" ]]; then
+        echo "    Trivy DB update skipped for this run (--cache skip-update=trivy)" >&2
+        _trivy_extra_flags+=(--skip-db-update --skip-java-db-update)
+    fi
     run docker run --rm \
         -v /var/run/docker.sock:/var/run/docker.sock:ro \
+        -v "${TRIVY_CACHE_VOLUME}:/root/.cache/trivy" \
         "${TRIVY_IMAGE}:${TRIVY_TAG}" image \
+            --quiet \
+            --no-progress \
             --exit-code 1 \
             --ignore-unfixed \
             --severity HIGH,CRITICAL,MEDIUM,LOW \
+            "${_trivy_extra_flags[@]}" \
             "${full_image}:${VERSION}"
 fi
 
@@ -308,8 +453,15 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "${ADVISE_GRYPE}" == "true" ]]; then
     echo "==> Stage 5a: Advise (Grype) ${full_image}:${VERSION}" >&2
+    _grype_env=()
+    if [[ "${CACHE_SKIP_UPDATE_GRYPE}" == "true" ]]; then
+        echo "    Grype DB update skipped for this run (--cache skip-update=grype)" >&2
+        _grype_env+=(-e GRYPE_DB_AUTO_UPDATE=false)
+    fi
     run docker run --rm \
         -v /var/run/docker.sock:/var/run/docker.sock:ro \
+        -v "${GRYPE_CACHE_VOLUME}:/root/.cache/grype" \
+        "${_grype_env[@]}" \
         "${GRYPE_IMAGE}:${GRYPE_TAG}" \
             "${full_image}:${VERSION}" || true
 fi
@@ -334,6 +486,7 @@ if [[ "${ADVISE_DIVE}" == "true" ]]; then
     run docker run --rm \
         -v /var/run/docker.sock:/var/run/docker.sock:ro \
         "${DIVE_IMAGE}:${DIVE_TAG}" \
+            --source docker \
             --ci \
             "${full_image}:${VERSION}" || true
 fi

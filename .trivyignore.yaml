@@ -18,5 +18,11 @@ vulnerabilities:
   # zlib1g: CRC32 DoS infinite loop (Debian Bookworm, no fix available).
   # Low risk for markdown-only processing workloads.
   - id: CVE-2026-27171
-    statement: "markdown workload does not process adversarial binary CRC32 inputs"
+    statement: "CRC32 DoS not exploitable in markdown parsing context"
     expired_at: "2026-06-17T00:00:00Z"
+
+  # minimatch: regular expression denial of service (ReDoS) in glob matching.
+  # mdless does not process user-controlled glob patterns at runtime.
+  - id: CVE-2026-26996
+    statement: "minimatch ReDoS not reachable; mdless does not expose glob patterns to user input"
+    expired_at: "2026-12-31T00:00:00Z"

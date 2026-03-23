@@ -34,6 +34,14 @@ jobs:
       - name: Node.js syntax check
         run: node --check docker-entrypoint.mjs
 
+      - name: Lint markdown with markdownlint-cli
+        run: |
+          docker run --rm \
+            -v "$PWD:/workdir:ro" \
+            -w /workdir \
+            ghcr.io/igorshubovych/markdownlint-cli:v0.48.0 \
+            "**/*.md"
+
   # ── Build & test ─────────────────────────────────────────────────────────────
   build-test:
     name: Build & test

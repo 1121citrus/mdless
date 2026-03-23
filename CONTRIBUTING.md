@@ -16,8 +16,12 @@
 Or manually:
 
 ```sh
-docker buildx build --load --provenance=mode=max --sbom=true -t 1121citrus/mdless:latest .
+docker buildx build --load -t 1121citrus/mdless:latest .
 ```
+
+Note: `--load` exports a single-platform image to the local Docker daemon.
+Provenance and SBOM attestations require a multi-manifest push to a registry
+and are incompatible with `--load`. Use `./build --push` for production releases.
 
 ## Test
 

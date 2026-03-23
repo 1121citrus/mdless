@@ -18,7 +18,7 @@ assert_contains() {
     needle="${2}"
     label="${3}"
 
-    echo "${haystack}" | grep -F "${needle}" >/dev/null 2>&1 || \
+    echo "${haystack}" | grep -F -- "${needle}" >/dev/null 2>&1 || \
         fail "${label}: expected output to contain '${needle}'"
 }
 
@@ -82,6 +82,16 @@ echo "[INFO] Test 9: invalid markdown renders successfully (mdless handles grace
 invalid_md_output=$(printf '[[broken [[ markdown {{{' | docker run --rm -i "${IMAGE}")
 # mdless renders gracefully even with malformed input; just verify output is produced
 [ -n "${invalid_md_output}" ] || fail "invalid-markdown: expected output, got empty string"
+
+echo "[INFO] Test 10: build help documents --advice and --cache"
+build_help_output=$(./build --help 2>&1)
+assert_contains "${build_help_output}" "--advice" "build help advice alias"
+assert_contains "${build_help_output}" "--cache CACHE_RULES" "build help cache"
+
+echo "[INFO] Test 11: staging help documents --scan and --advise"
+staging_help_output=$(./test/staging --help 2>&1)
+assert_contains "${staging_help_output}" "--scan" "staging scan option"
+assert_contains "${staging_help_output}" "--advise" "staging advise option"
 
 # Test image in the CI workflow can't have its provenance attested by Docker Scout because the
 # image is built locally and not pushed to a registry, so this test is skipped in the CI context.
