@@ -88,11 +88,6 @@ build_help_output=$(./build --help 2>&1)
 assert_contains "${build_help_output}" "--advice" "build help advice alias"
 assert_contains "${build_help_output}" "--cache CACHE_RULES" "build help cache"
 
-echo "[INFO] Test 11: staging help documents --scan and --advise"
-staging_help_output=$(./test/staging --help 2>&1)
-assert_contains "${staging_help_output}" "--scan" "staging scan option"
-assert_contains "${staging_help_output}" "--advise" "staging advise option"
-
 # Test image in the CI workflow can't have its provenance attested by Docker Scout because the
 # image is built locally and not pushed to a registry, so this test is skipped in the CI context.
 # echo "[INFO] Test 10: Docker Scout sees provenance attestation"

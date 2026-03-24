@@ -157,4 +157,3 @@ On push of version tag (v1.2.3)
 ## Local Workflow Parity
 
 - `./build` supports `--advice` (alias for `--advise`) and `--cache` for one-run scanner cache controls.
-- `test/staging` provides manual pre-release image validation plus optional Trivy/Grype/Scout/Dive checks.

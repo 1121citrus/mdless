@@ -37,20 +37,6 @@ automatically to the just-built image.
 | Error code propagation | Non-zero `mdless` exits are forwarded |
 | Invalid markdown | Graceful handling of malformed input |
 
-## Manual staging tests
-
-`test/staging` exercises the full image with optional advisory scans:
-
-```sh
-# Smoke checks only:
-test/staging --no-scan --yes 1121citrus/mdless:dev-abc1234
-
-# With Trivy scan and advisory scans:
-test/staging 1121citrus/mdless:dev-abc1234
-```
-
-Run `test/staging --help` for the full option list.
-
 ## Sample data
 
 `test/sample.md` is a small markdown fixture used by the file-argument and

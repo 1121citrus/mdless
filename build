@@ -387,7 +387,6 @@ if [[ "${LINT}" == "true" ]]; then
         -v "${script_dir}:/mnt" \
         "${SHELLCHECK_IMAGE}:${SHELLCHECK_TAG}" \
         build \
-        test/staging \
         test/run-tests)
 
     echo "    node --check docker-entrypoint.mjs" >&2
