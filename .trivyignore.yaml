@@ -26,3 +26,11 @@ vulnerabilities:
   - id: CVE-2026-26996
     statement: "minimatch ReDoS not reachable; mdless does not expose glob patterns to user input"
     expired_at: "2026-12-31T00:00:00Z"
+    statement: "markdown workload does not process adversarial binary CRC32 inputs"
+    expired_at: "2026-06-17T00:00:00Z"
+
+  # minimatch: regular expression denial of service (ReDoS) in glob matching.
+  # mdless does not process user-controlled glob patterns at runtime.
+  - id: CVE-2026-26996
+    statement: "minimatch ReDoS not reachable; mdless does not expose glob patterns to user input"
+    expired_at: "2026-12-31T00:00:00Z"
