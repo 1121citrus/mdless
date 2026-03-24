@@ -1,0 +1,17 @@
+rules:
+  # Efficiency below this percentage fails the check.
+  lowestEfficiency: 0.9
+
+  # Absolute wasted bytes above this threshold fails the check.
+  # Disabled: node:25.8.1-slim ships npm (~20-40 MB) which is deliberately
+  # removed from the runtime image (rm -rf node_modules/npm) for CVE
+  # remediation.  Those npm files remain in the base layer and are counted as
+  # wasted by Dive; this is expected and intentional.
+  highestWastedBytes: disabled
+
+  # Percentage of wasted user-layer space above this threshold fails the check.
+  # Default is 0.1 (10%).  Relaxed to 0.30: the npm removal accounts for a
+  # significant fraction of the node:slim image and is unavoidable given the
+  # multi-stage design (builder installs npm tools; runtime removes npm for
+  # security hardening).
+  highestUserWastedPercent: 0.30

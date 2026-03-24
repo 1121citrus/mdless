@@ -107,8 +107,8 @@ docker scout cves 1121citrus/mdless:latest
 
 ### Reporting Security Issues
 
-If you discover a security vulnerability, please open a private security
-advisory rather than a public issue.
+Please report security vulnerabilities through the [GitHub Security tab](https://github.com/1121citrus/mdless/security).
+Do not open a public GitHub issue for security vulnerabilities.
 
 ### Dependencies
 
