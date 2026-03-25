@@ -10,6 +10,7 @@ Automated linting, building, testing, security scanning, and multi-platform Dock
 | **Build & test**   | After lint                            | Build image and run integration tests                        |
 | **Security scan**  | After build & test                    | Filesystem vulnerability scan (informational)                |
 | **Push**           | Version tags (`v*`) only              | Multi-platform build and push to Docker Hub with semver tags |
+| **Dependabot**     | Weekly (Monday 06:00 UTC)             | Keep GitHub Actions versions current                         |
 
 ## CI Workflow (`ci.yml`)
 
@@ -50,7 +51,6 @@ Builds the Docker image and runs the full integration test suite.
 
 - Executes `test/run-tests` which builds the image (tag: `test`) and runs all checks
 - Test coverage: file rendering, stdin rendering, no-input handling, help flags, argument passthrough, non-root runtime, empty stdin edge case, error code propagation, invalid markdown handling
-- `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` — suppresses GHA Node.js deprecation warnings
 
 ---
 
@@ -153,6 +153,19 @@ On push of version tag (v1.2.3)
 - `.hadolint.yaml` — Hadolint rules configuration
 - `.trivyignore.yaml` — Trivy CVE exceptions
 - `test/run-tests` — Integration test script
+
+## Automated dependency updates
+
+`dependabot.yml` configures weekly automated PRs to keep GitHub Actions current.
+
+- **Schedule:** Every Monday at 06:00 UTC
+- **Scope:** GitHub Actions (`package-ecosystem: github-actions`) — updates action pins in
+  `.github/workflows/*.yml`
+- **Labels:** `dependencies`, `github-actions`
+- **Security benefit:** Dependabot also proposes SHA-pinned digests (recommended for SLSA /
+  OpenSSF Scorecard hardening)
+
+---
 
 ## Local Workflow Parity
 
