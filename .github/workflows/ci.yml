@@ -11,14 +11,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
+# Minimal permissions by default; individual jobs add only what they need.
 permissions:
   contents: read
 
 env:
+  IMAGE: 1121citrus/mdless
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # ── Lint ────────────────────────────────────────────────────────────────────
+  # ── Stage 1: Lint ────────────────────────────────────────────────────────────
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -49,9 +51,10 @@ jobs:
             ghcr.io/igorshubovych/markdownlint-cli:v0.48.0 \
             "**/*.md"
 
-  # ── Build & test ─────────────────────────────────────────────────────────────
-  build-test:
-    name: Build & test
+  # ── Stage 2: Build ───────────────────────────────────────────────────────────
+  # Build image once, share as artifact so test and scan use the same image.
+  build:
+    name: Build
     needs: lint
     runs-on: ubuntu-latest
 
@@ -61,46 +64,96 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-      - name: Run integration test suite
-        # test/run-tests builds the image (tag: test) then runs all checks.
-        run: sh test/run-tests
+      - name: Build image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          load: true
+          tags: ${{ env.IMAGE }}:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-  # ── Security scan ─────────────────────────────────────────────────────────────
-  # Filesystem scan — results uploaded to GitHub Security tab.
-  # Non-blocking: findings are visible but do not prevent publication.
-  scan:
-    name: Security scan
-    needs: build-test
+      # Re-tag as :latest so test/run-tests (TAG=latest) uses the pre-built image.
+      - name: Re-tag as :latest for test scripts
+        run: docker tag "$IMAGE:ci-${{ github.sha }}" "$IMAGE:latest"
+
+      - name: Save image for downstream jobs
+        run: docker save "$IMAGE:latest" | gzip > /tmp/image.tar.gz
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: docker-image
+          path: /tmp/image.tar.gz
+          retention-days: 1
+
+  # ── Stage 3: Test ────────────────────────────────────────────────────────────
+  test:
+    name: Test
+    needs: build
     runs-on: ubuntu-latest
-    permissions:
-      security-events: write
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Run Trivy vulnerability scanner
+      - name: Download image artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: docker-image
+          path: /tmp
+
+      - name: Load image
+        run: gunzip -c /tmp/image.tar.gz | docker load
+
+      - name: Run integration test suite
+        # TAG=latest tells run-tests to use the pre-built image instead of building.
+        run: TAG=latest sh test/run-tests
+
+  # ── Stage 4: Security scan ───────────────────────────────────────────────────
+  # Scans the built image before pushing.  Fails the job (and blocks push) if
+  # any fixable HIGH or CRITICAL CVEs are found; unfixed CVEs are suppressed via
+  # .trivyignore.yaml (entries are time-bounded and documented in SECURITY.md).
+  scan:
+    name: Security scan
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download image artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: docker-image
+          path: /tmp
+
+      - name: Load image
+        run: gunzip -c /tmp/image.tar.gz | docker load
+
+      - name: Cache Trivy vulnerability DB
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: trivy-db-${{ runner.os }}-
+
+      - name: Trivy vulnerability scan
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
-          scan-type: fs
-          scan-ref: .
-          format: sarif
-          output: trivy-results.sarif
-          severity: CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN
+          image-ref: ${{ env.IMAGE }}:latest
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: true
           trivyignores: .trivyignore.yaml
+        env:
+          TRIVY_NO_PROGRESS: "true"
+          TRIVY_QUIET: "true"
 
-      - name: Upload Trivy results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc # v4
-        if: always()
-        continue-on-error: true
-        with:
-          sarif_file: trivy-results.sarif
-
-  # ── Build & push ─────────────────────────────────────────────────────────────
+  # ── Stage 5: Push to Docker Hub ──────────────────────────────────────────────
   # Triggered only by version tags (v1.2.3, v1.2, v1).
   # v1.2.3 → 1121citrus/mdless:1.2.3, :1.2, :1, :latest
   push:
     name: Build & push
-    needs: build-test
+    needs: [test, scan]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
 
