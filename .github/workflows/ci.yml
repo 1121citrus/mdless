@@ -5,6 +5,12 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main, master]
+
+# Cancel in-progress runs for branch/PR refs; let tag builds always complete.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
 permissions:
   contents: read
 
