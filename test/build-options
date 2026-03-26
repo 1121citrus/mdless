@@ -9,7 +9,16 @@ contains "${help_out}" "--advice" || fail "build --help missing --advice"
 contains "${help_out}" "--cache CACHE_RULES" || fail "build --help missing --cache"
 adv_out=$("${build_script}" --advice scout --dry-run --no-lint --no-test --no-scan 2>&1)
 contains "${adv_out}" "Stage 5b: Advise (Scout)" || fail "--advice scout did not enable Scout advisement"
+adv_dive_out=$("${build_script}" --advise Dive --dry-run --no-lint --no-test --no-scan 2>&1)
+contains "${adv_dive_out}" "Stage 5c: Advise (Dive)" || fail "--advise Dive did not enable Dive advisement"
+adv_dive_upper_out=$("${build_script}" --advise DIVE --dry-run --no-lint --no-test --no-scan 2>&1)
+contains "${adv_dive_upper_out}" "Stage 5c: Advise (Dive)" || fail "--advise DIVE did not enable Dive advisement"
 cache_out=$("${build_script}" --cache "reset=all" --dry-run --no-lint --no-test --no-scan --no-advise 2>&1)
 contains "${cache_out}" "Cache: reset Trivy DB" || fail "--cache reset=all missing Trivy reset"
 contains "${cache_out}" "Cache: reset Grype DB" || fail "--cache reset=all missing Grype reset"
+mixed_cache_out=$("${build_script}" --cache "Reset=All" --dry-run --no-lint --no-test --no-scan --no-advise 2>&1)
+contains "${mixed_cache_out}" "Cache: reset Trivy DB" || fail "--cache Reset=All missing Trivy reset"
+contains "${mixed_cache_out}" "Cache: reset Grype DB" || fail "--cache Reset=All missing Grype reset"
+skip_cache_out=$("${build_script}" --cache "Skip-Update=TrIvY" --dry-run --no-lint --no-test 2>&1)
+contains "${skip_cache_out}" "Trivy DB update skipped" || fail "--cache Skip-Update=TrIvY missing Trivy skip-update"
 echo "[PASS] build option coverage"
