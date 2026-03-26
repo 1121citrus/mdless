@@ -18,6 +18,7 @@ Thumbs.db
 build/
 dist/
 *.tar.gz
+*.new
 
 # Docker
 docker-compose.override.yml
