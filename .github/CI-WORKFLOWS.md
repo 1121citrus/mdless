@@ -4,13 +4,14 @@ Automated linting, building, testing, security scanning, and multi-platform Dock
 
 ## Workflow Overview
 
-| Stage              | Trigger                               | Purpose                                                      |
-| ------------------ | ------------------------------------- | ------------------------------------------------------------ |
-| **Lint**           | All pushes to main, PRs, version tags | Validate Dockerfile, shell scripts, and Node.js entrypoint   |
-| **Build & test**   | After lint                            | Build image and run integration tests                        |
-| **Security scan**  | After build & test                    | Filesystem vulnerability scan (informational)                |
-| **Push**           | Version tags (`v*`) only              | Multi-platform build and push to Docker Hub with semver tags |
-| **Dependabot**     | Weekly (Monday 06:00 UTC)             | Keep GitHub Actions versions current                         |
+| Stage              | Trigger                                       | Purpose                                                                |
+| ------------------ | --------------------------------------------- | ---------------------------------------------------------------------- |
+| **Lint**           | All pushes to main/staging, PRs, version tags | Validate Dockerfile, shell scripts, and Node.js entrypoint             |
+| **Build**          | After lint                                    | Build image and share as artifact                                      |
+| **Test**           | After build                                   | Run integration tests against the built image                          |
+| **Security scan**  | After build (parallel with test)              | Image CVE scan; blocks push if fixable HIGH/CRITICAL found             |
+| **Push**           | Version tags (`v*`) or `staging` branch       | Multi-platform build and push to Docker Hub (semver or staging tags)   |
+| **Dependabot**     | Weekly (Monday 06:00 UTC)                     | Keep GitHub Actions versions current                                   |
 
 ## CI Workflow (`ci.yml`)
 
@@ -18,7 +19,7 @@ Single unified workflow for all CI/CD stages.
 
 ### Trigger Events
 
-- **Push:** `main` branch and `v*` version tags
+- **Push:** `main`, `staging` branches and `v*` version tags
 - **Pull requests:** To `main` branch
 
 ### Concurrency
@@ -29,12 +30,17 @@ Single unified workflow for all CI/CD stages.
 
 ### Versioning
 
-Tag-driven. Push a git tag to publish:
+Tag-driven for releases; branch-driven for staging pre-release validation.
 
 ```bash
+# Release — push a semver tag:
 git tag v1.2.3
 git push origin v1.2.3
 # Publishes: 1121citrus/mdless:1.2.3, :1.2, :1, :latest
+
+# Staging — push to the staging branch:
+git push origin HEAD:staging
+# Publishes: 1121citrus/mdless:staging-2026.03.25.120000, :staging
 ```
 
 No automation bumps the version — the tag is always a deliberate human decision.
@@ -51,42 +57,55 @@ No automation bumps the version — the tag is always a deliberate human decisio
 
 ---
 
-## Stage 2: Build & test
+## Stage 2: Build
 
-Builds the Docker image and runs the full integration test suite.
+Builds the Docker image and uploads it as a gzip'd artifact for downstream jobs.
 
-- Executes `test/run-tests` which builds the image (tag: `test`) and runs all checks
+- Single-platform build loaded into the local Docker daemon
+- Tagged `ci-<SHA>` and re-tagged `:latest` for test script compatibility
+- Artifact retained for 1 day
+
+---
+
+## Stage 3: Test
+
+Downloads the image artifact and runs the full integration test suite.
+
+- Executes `test/run-tests` with `TAG=latest` to use the pre-built image
 - Test coverage: file rendering, stdin rendering, no-input handling, help flags, argument passthrough, non-root runtime, empty stdin edge case, error code propagation, invalid markdown handling
 
 ---
 
-## Stage 3: Security scan
+## Stage 4: Security scan
 
-Filesystem scan with Trivy; results uploaded to GitHub Security tab.
+Image scan with Trivy; blocks push if fixable HIGH or CRITICAL CVEs are found.
 
-- **Type:** Filesystem scan (source + dependencies, not image)
+- **Type:** Image scan (`image-ref:`)
 - **Version:** `aquasecurity/trivy-action@0.35.0` (pinned)
-- **Format:** SARIF — appears in repository Security → Code scanning tab
-- **Severity:** CRITICAL, HIGH, MEDIUM, LOW, UNKNOWN
-- **Config:** `.trivyignore.yaml` for documented exceptions
-- **Blocking:** No — findings are informational. `continue-on-error: true` on SARIF upload
+- **Format:** Table (also `.trivyignore.yaml` applied)
+- **Severity:** CRITICAL, HIGH
+- **Config:** `.trivyignore.yaml` for time-bounded documented exceptions
+- **Blocking:** Yes — `exit-code: 1`, unfixed CVEs suppressed via `ignore-unfixed: true`
 
-Runs in parallel with the push job (both depend on build-test).
+Runs in parallel with test (both depend on build).
 
 ---
 
-## Stage 4: Build & push
+## Stage 5: Build & push
 
-Runs **only on version tags** (`v*`). Builds multi-platform image with full supply-chain metadata.
+Runs on **version tags** (`v*`) and the **`staging` branch**. Builds multi-platform image with full supply-chain metadata.
 
-### Semver tags
+### Tags
 
-`docker/metadata-action` parses the git tag and generates OCI tags:
+`docker/metadata-action` computes OCI tags from the triggering ref:
 
-| Git tag  | Docker Hub tags                                    |
-| -------- | -------------------------------------------------- |
-| `v1.2.3` | `1121citrus/mdless:1.2.3`, `:1.2`, `:1`, `:latest` |
-| `v2.0.0` | `1121citrus/mdless:2.0.0`, `:2.0`, `:2`, `:latest` |
+| Trigger               | Docker Hub tags                                            |
+| --------------------- | ---------------------------------------------------------- |
+| Tag `v1.2.3`          | `1121citrus/mdless:1.2.3`, `:1.2`, `:1`, `:latest`        |
+| Tag `v2.0.0`          | `1121citrus/mdless:2.0.0`, `:2.0`, `:2`, `:latest`        |
+| Branch `staging`      | `1121citrus/mdless:staging-2026.03.25.120000`, `:staging`  |
+
+For staging pushes, `VERSION` in the image's build-args is set to the timestamp string.
 
 ### Build configuration
 
@@ -99,20 +118,21 @@ Runs **only on version tags** (`v*`). Builds multi-platform image with full supp
 ## Execution Flow
 
 ```
-On push to main or PR to main
+On push to main/staging or PR to main
     ↓
 [Lint] — ShellCheck, Hadolint, Node.js syntax
     ↓
-[Build & test] — build image, run test/run-tests
+[Build] — build image, upload artifact
     ↓ (parallel)
-[Scan]                       [Push] (tags only)
- - Trivy filesystem scan      - Set up QEMU + Buildx
- - Upload SARIF               - Generate semver tags
- - Non-blocking               - Build + push multi-arch
+[Test]                      [Scan]
+ - run test/run-tests         - Trivy image scan
+                              - Blocking (exit-code: 1)
 
-On push of version tag (v1.2.3)
-    ↓ (same lint + build-test gate)
-[Push] — multi-platform build and push to Docker Hub
+                    ↓ (both must pass)
+         [Push] (tags or staging branch)
+          - Set up QEMU + Buildx
+          - Compute tags (semver or staging-<timestamp>)
+          - Build + push multi-arch
 ```
 
 ---
@@ -148,7 +168,7 @@ On push of version tag (v1.2.3)
 
 **Security scan:** Review findings in GitHub Security → Code scanning tab. Document acknowledged CVEs in `.trivyignore.yaml`.
 
-**Push failures:** Verify `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` secrets. Tag must match `v*` pattern (e.g., `v1.2.3`).
+**Push failures:** Verify `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` secrets. Release pushes require a `v*` tag (e.g., `v1.2.3`). Staging pushes are triggered by pushing to the `staging` branch.
 
 ---
 
