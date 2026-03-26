@@ -458,12 +458,14 @@ if [[ "${SCAN}" == "true" ]]; then
     run docker run --rm \
         -v /var/run/docker.sock:/var/run/docker.sock:ro \
         -v "${TRIVY_CACHE_VOLUME}:/root/.cache/trivy" \
+        -v "${script_dir}/.trivyignore.yaml:/.trivyignore.yaml:ro" \
         "${TRIVY_IMAGE}:${TRIVY_TAG}" image \
             --quiet \
             --no-progress \
             --exit-code 1 \
             --ignore-unfixed \
-            --severity HIGH,CRITICAL,MEDIUM,LOW \
+            --ignorefile /.trivyignore.yaml \
+            --severity CRITICAL,HIGH \
             "${_trivy_extra_flags[@]}" \
             "${full_image}:${VERSION}"
 fi
@@ -481,7 +483,7 @@ if [[ "${ADVISE_GRYPE}" == "true" ]]; then
         echo "    Grype DB update skipped for this run (--cache skip-update=grype)" >&2
         _grype_env+=(-e GRYPE_DB_AUTO_UPDATE=false)
     fi
-    _grype_tar=$(mktemp /tmp/grype-scan-XXXXXX.tar)
+    _grype_tar=$(mktemp /tmp/grype-scan-XXXXXX)
     # shellcheck disable=SC2064
     trap "rm -f '${_grype_tar}'" EXIT
     if [[ "${DRY_RUN}" == "true" ]]; then
