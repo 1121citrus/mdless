@@ -179,6 +179,12 @@ jobs:
             type=semver,pattern={{major}}
             type=raw,value=latest
 
+      - name: Build metadata extras
+        id: extras
+        run: |
+          echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y%m%dT%H%M%S)" >> "$GITHUB_OUTPUT"
+
       - name: Log in to Docker Hub
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -194,6 +200,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            GIT_COMMIT=${{ steps.extras.outputs.commit }}
+            BUILD_DATE=${{ steps.extras.outputs.date }}
           provenance: mode=max
           sbom: true
           cache-from: type=gha

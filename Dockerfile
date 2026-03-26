@@ -84,6 +84,20 @@ ENV MDLESS_VERSION=${MDLESS_VERSION}
 ARG MARKED_VERSION
 ENV MARKED_VERSION=${MARKED_VERSION}
 
+ARG VERSION=dev
+ARG GIT_COMMIT=unknown
+ARG BUILD_DATE=unknown
+LABEL org.opencontainers.image.title="mdless" \
+      org.opencontainers.image.description="Docker wrapper image for mdless, a terminal markdown viewer" \
+      org.opencontainers.image.url="https://github.com/1121citrus/mdless" \
+      org.opencontainers.image.source="https://github.com/1121citrus/mdless" \
+      org.opencontainers.image.vendor="1121 Citrus Avenue" \
+      org.opencontainers.image.authors="James Hanlon <jim@hanlonsoftware.com>" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${GIT_COMMIT}" \
+      org.opencontainers.image.created="${BUILD_DATE}"
+
 # Default working directory; callers mount their markdown files here.
 WORKDIR /workspace
 
