@@ -100,4 +100,38 @@ assert_contains "${build_help_output}" "--cache CACHE_RULES" "build help cache"
 #     assert_contains "${scout_output}" "Provenance obtained from attestation" "provenance attestation"
 # fi
 
+DOCKERFILE="$(cd "$(dirname "$0")/.." && pwd)/Dockerfile"
+
+echo "[INFO] Test 11: Dockerfile declares ARG VERSION"
+grep -qE '^ARG VERSION=' "${DOCKERFILE}" || fail "ARG VERSION not declared in Dockerfile"
+
+echo "[INFO] Test 12: Dockerfile declares ARG GIT_COMMIT"
+grep -qE '^ARG GIT_COMMIT=' "${DOCKERFILE}" || fail "ARG GIT_COMMIT not declared in Dockerfile"
+
+echo "[INFO] Test 13: Dockerfile declares ARG BUILD_DATE"
+grep -qE '^ARG BUILD_DATE=' "${DOCKERFILE}" || fail "ARG BUILD_DATE not declared in Dockerfile"
+
+echo "[INFO] Test 14: Dockerfile has required OCI LABEL keys"
+for label in \
+    'org.opencontainers.image.title' \
+    'org.opencontainers.image.description' \
+    'org.opencontainers.image.url' \
+    'org.opencontainers.image.source' \
+    'org.opencontainers.image.vendor' \
+    'org.opencontainers.image.licenses' \
+    'org.opencontainers.image.authors'; do
+    grep -qF "${label}" "${DOCKERFILE}" || fail "LABEL ${label} not declared in Dockerfile"
+done
+
+echo "[INFO] Test 15: OCI version/revision/created labels are wired to ARG variables"
+# shellcheck disable=SC2016  # single quotes are intentional: grep for the literal string ${VERSION}
+grep -qF 'org.opencontainers.image.version="${VERSION}"' "${DOCKERFILE}" \
+    || fail "org.opencontainers.image.version not wired to VERSION build-arg"
+# shellcheck disable=SC2016  # single quotes are intentional: grep for the literal string ${GIT_COMMIT}
+grep -qF 'org.opencontainers.image.revision="${GIT_COMMIT}"' "${DOCKERFILE}" \
+    || fail "org.opencontainers.image.revision not wired to GIT_COMMIT build-arg"
+# shellcheck disable=SC2016  # single quotes are intentional: grep for the literal string ${BUILD_DATE}
+grep -qF 'org.opencontainers.image.created="${BUILD_DATE}"' "${DOCKERFILE}" \
+    || fail "org.opencontainers.image.created not wired to BUILD_DATE build-arg"
+
 echo "[INFO] All tests passed"
