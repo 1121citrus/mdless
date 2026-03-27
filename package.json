@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "glob": "11.1.0",
+    "marked": "4.3.0",
+    "mdless": "2.0.1",
+    "minimatch": "9.0.7",
+    "tar": "7.5.11"
+  },
+  "description": "Npm dependency manifest — Dependabot tracks this file and proposes version-bump PRs. The Dockerfile ARG defaults must be kept in sync with these versions.",
+  "name": "mdless-docker",
+  "private": true,
+  "version": "0.0.0"
+}
