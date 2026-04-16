@@ -10,9 +10,6 @@
 # - Preserve a simple docker run UX for file and stdin-based markdown rendering.
 
 # ── Build-time arguments ──────────────────────────────────────────────────────
-# NODE_VERSION: builder and runtime base image coordinates.
-ARG NODE_VERSION=25.8.1-slim
-
 # MDLESS_VERSION: pinned to the current stable release.
 # Check https://www.npmjs.com/package/mdless for updates.
 ARG MDLESS_VERSION=2.0.1
@@ -35,8 +32,9 @@ ARG GLOB_VERSION=11.1.0
 
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
 # Full Alpine + npm toolchain used only to install and patch the mdless package.
-# Nothing from this stage's OS layer reaches the runtime image.
-FROM node:${NODE_VERSION} AS builder
+# Nothing from this stage's OS layer reaches the runtime image.  The literal tag
+# lets Dependabot open PRs when a newer node image is published.
+FROM node:25.8.1-slim AS builder
 
 ARG MDLESS_VERSION
 ARG MARKED_VERSION
@@ -70,13 +68,12 @@ RUN npm install --omit=dev \
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
 # Minimal runtime image — no build tools, no npm cache, no layer history
 # from the builder stage.
-FROM node:${NODE_VERSION}
+FROM node:25.8.1-slim
 
 # Expose build metadata as environment variables for runtime inspection.
 # This helps with audit/debug workflows where image provenance and component
 # versions need to be observable from container metadata.
-ARG NODE_VERSION
-ENV NODE_VERSION=${NODE_VERSION}
+ENV NODE_VERSION=25.8.1-slim
 
 ARG MDLESS_VERSION
 ENV MDLESS_VERSION=${MDLESS_VERSION}

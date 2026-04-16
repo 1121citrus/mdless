@@ -24,6 +24,19 @@ updates:
       - "dependencies"
       - "github-actions"
 
+  # ── Docker ──────────────────────────────────────────────────────────────────
+  # Tracks the node base image pinned directly in both FROM lines.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "docker"
+
   # ── npm ───────────────────────────────────────────────────────────────────────
   # Keeps package.json dependencies up to date.
   # NOTE: marked is pinned to v4.x — v5 changed its export shape and requires
