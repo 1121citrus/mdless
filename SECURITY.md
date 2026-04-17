@@ -54,6 +54,31 @@ This document tracks known security vulnerabilities and remediation status.
   against mdless's glob dependency chain
 - **Reference**: <https://scout.docker.com/v/CVE-2026-26996>
 
+#### CVE-2026-29111 (HIGH)
+
+- **Component**: libsystemd0, libudev1 (Debian OS packages)
+- **Affected Version**: 252.39-1~deb12u1 (Debian Bookworm/12)
+- **Fixed Version**: no fix available upstream
+- **Description**: Arbitrary code execution or denial of service via spurious
+  IPC messages in systemd.
+- **Status**: No Debian package fix available; monitoring for upstream release
+- **Mitigation**: systemd is not invoked by mdless or Node.js inside the
+  container; the vulnerable IPC code path is not reachable during
+  markdown-rendering workloads
+- **Reference**: <https://avd.aquasec.com/nvd/cve-2026-29111>
+
+#### CVE-2025-69720 (HIGH)
+
+- **Component**: ncurses (libtinfo6, ncurses-base, ncurses-bin) — Debian OS packages
+- **Affected Version**: 6.4-4 (Debian Bookworm/12)
+- **Fixed Version**: no fix available upstream
+- **Description**: Buffer overflow in ncurses that may lead to arbitrary code
+  execution on crafted terminal input sequences.
+- **Status**: No Debian package fix available; monitoring for upstream release
+- **Mitigation**: mdless outputs plain text to stdout and does not use ncurses
+  for terminal control; the vulnerable code path is not reachable
+- **Reference**: <https://avd.aquasec.com/nvd/cve-2025-69720>
+
 #### npm bundled package CVEs (tar, minimatch) — REMEDIATED
 
 - **Component**: npm's own internal `node_modules` (formerly at `/usr/local/lib/node_modules/npm/node_modules/`)
@@ -69,7 +94,7 @@ This document tracks known security vulnerabilities and remediation status.
 
 ### Remediated Vulnerabilities
 
-#### npm transitive dependency CVEs (remediated 2026-03)
+#### npm transitive dependency CVEs (remediated 2026-03 through 2026-04)
 
 Addressed by pinning vulnerable packages to their minimum fixed versions
 inside the mdless dependency tree (`Dockerfile` override installs):
@@ -85,6 +110,7 @@ inside the mdless dependency tree (`Dockerfile` override installs):
 | CVE-2026-27904 | minimatch (npm) | 9.0.5 | 9.0.7 |
 | CVE-2026-27903 | minimatch (npm) | 9.0.5 | 9.0.7 |
 | CVE-2025-64756 | glob (npm) | 10.4.5 | 11.1.0 |
+| CVE-2026-4800 | lodash (npm) | 4.17.23 | 4.18.1 |
 
 Note: trivy image scans may still report tar and minimatch CVEs because npm
 ships its own private copies of these packages. The remediation above applies
@@ -119,3 +145,4 @@ Do not open a public GitHub issue for security vulnerabilities.
 - **tar 7.5.11**: Override of mdless transitive dep to clear path traversal CVEs
 - **minimatch 9.0.7**: Override of mdless transitive dep to reduce ReDoS CVEs
 - **glob 11.1.0**: Override of mdless transitive dep to clear command injection CVE
+- **lodash 4.18.1**: Override of mdless transitive dep to clear code injection CVE

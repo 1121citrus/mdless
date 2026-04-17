@@ -26,9 +26,11 @@ ARG MARKED_VERSION=4.3.0
 #   tar:       >=7.5.11 fixes CVE-2026-23950/31802/29786/24842/23745/26960
 #   minimatch: >=9.0.7  fixes CVE-2026-27904/27903 (CVE-2026-26996 requires >=10.2.1)
 #   glob:      >=11.1.0 fixes CVE-2025-64756
+#   lodash:    >=4.18.0 fixes CVE-2026-4800 (code injection via template imports)
 ARG TAR_VERSION=7.5.11
 ARG MINIMATCH_VERSION=9.0.7
 ARG GLOB_VERSION=11.1.0
+ARG LODASH_VERSION=4.18.1
 
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
 # Full Alpine + npm toolchain used only to install and patch the mdless package.
@@ -41,6 +43,7 @@ ARG MARKED_VERSION
 ARG TAR_VERSION
 ARG MINIMATCH_VERSION
 ARG GLOB_VERSION
+ARG LODASH_VERSION
 
 # 1. Install mdless globally (omitting devDependencies).
 # 2. Override vulnerable transitive dependencies with patched versions.
@@ -62,6 +65,7 @@ RUN npm install --omit=dev \
         "tar@${TAR_VERSION}" \
         "minimatch@${MINIMATCH_VERSION}" \
         "glob@${GLOB_VERSION}" \
+        "lodash@${LODASH_VERSION}" \
     && node -e 'const fs=require("fs"); const file="index.js"; let source=fs.readFileSync(file,"utf8"); const markedReplacement=["var markedModule = require(\x27marked\x27);", "var marked = markedModule.marked || markedModule;"].join("\n"); source=source.replace("var marked = require(\x27marked\x27);", markedReplacement); source=source.replace("    pager(markedUp);", "    process.stdout.write(markedUp);"); fs.writeFileSync(file, source);' \
     && npm cache clean --force >/dev/null 2>&1
 

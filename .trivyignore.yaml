@@ -26,3 +26,15 @@ vulnerabilities:
   - id: CVE-2026-26996
     statement: "minimatch ReDoS not reachable; mdless does not expose glob patterns to user input"
     expired_at: "2026-12-31T00:00:00Z"
+
+  # systemd: arbitrary code execution via spurious IPC (Debian Bookworm, no fix available).
+  # systemd is not invoked by mdless or Node.js at runtime in the container.
+  - id: CVE-2026-29111
+    statement: "systemd IPC code path not reachable; mdless container does not invoke systemd"
+    expired_at: "2026-12-31T00:00:00Z"
+
+  # ncurses: buffer overflow in ncurses (Debian Bookworm, no fix available).
+  # ncurses is not used by mdless or Node.js; terminal output goes to stdout.
+  - id: CVE-2025-69720
+    statement: "ncurses code path not reachable; mdless outputs plain text to stdout without ncurses"
+    expired_at: "2026-12-31T00:00:00Z"
