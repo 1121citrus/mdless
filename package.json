@@ -5,7 +5,7 @@
     "marked": "4.3.0",
     "mdless": "2.0.1",
     "minimatch": "10.2.5",
-    "tar": "7.5.11"
+    "tar": "7.5.13"
   },
   "description": "Npm dependency manifest — Dependabot tracks this file and proposes version-bump PRs. These versions must be kept in sync with the hardcoded FROM line in the Dockerfile.",
   "name": "mdless-docker",
