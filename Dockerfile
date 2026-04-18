@@ -36,7 +36,7 @@ ARG LODASH_VERSION=4.18.1
 # Full Alpine + npm toolchain used only to install and patch the mdless package.
 # Nothing from this stage's OS layer reaches the runtime image.  The literal tag
 # lets Dependabot open PRs when a newer node image is published.
-FROM node:25.8.1-slim AS builder
+FROM node:25.9.0-slim AS builder
 
 ARG MDLESS_VERSION
 ARG MARKED_VERSION
@@ -72,7 +72,7 @@ RUN npm install --omit=dev \
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
 # Minimal runtime image — no build tools, no npm cache, no layer history
 # from the builder stage.
-FROM node:25.8.1-slim
+FROM node:25.9.0-slim
 
 # Expose build metadata as environment variables for runtime inspection.
 # This helps with audit/debug workflows where image provenance and component
