@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "glob": "11.1.0",
+    "glob": "13.0.6",
     "lodash": "4.18.1",
     "marked": "4.3.0",
     "mdless": "2.0.1",
