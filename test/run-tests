@@ -88,9 +88,44 @@ build_help_output=$(./build --help 2>&1)
 assert_contains "${build_help_output}" "--advice" "build help advice alias"
 assert_contains "${build_help_output}" "--cache CACHE_RULES" "build help cache"
 
+DOCKERFILE="$(cd "$(dirname "$0")/.." && pwd)/Dockerfile"
+
+echo "[INFO] Test 11: build _timed watcher wait is guarded for set -e"
+grep -q 'wait "${_watcher}" 2>/dev/null || true' ./build || \
+    fail "_timed watcher wait guard missing in build script"
+
+echo "[INFO] Test 12: build rejects missing values for key options"
+if ./build --version >/dev/null 2>&1; then
+    fail "--version without value should fail"
+fi
+if ./build --platform >/dev/null 2>&1; then
+    fail "--platform without value should fail"
+fi
+if ./build --registry >/dev/null 2>&1; then
+    fail "--registry without value should fail"
+fi
+
+echo "[INFO] Test 13: --cache skip-update=all emits both skip-update messages"
+skip_update_output=$(./build --cache 'skip-update=all' --dry-run --no-lint --no-test --no-scan 2>&1)
+assert_contains "${skip_update_output}" "Trivy DB update skipped" "trivy skip-update"
+assert_contains "${skip_update_output}" "Grype DB update skipped" "grype skip-update"
+
+echo "[INFO] Test 14: Dockerfile pins lodash override for CVE-2026-4800 fix"
+grep -q '^ARG LODASH_VERSION=4\.18\.1' "${DOCKERFILE}" || \
+    fail "ARG LODASH_VERSION pin missing in Dockerfile"
+grep -q '"lodash@${LODASH_VERSION}"' "${DOCKERFILE}" || \
+    fail "lodash transitive override missing in Dockerfile"
+
+echo "[INFO] Test 15: trivy ignore list includes unresolved OS CVEs"
+TRIVYIGNORE="$(cd "$(dirname "$0")/.." && pwd)/.trivyignore.yaml"
+grep -q 'id: CVE-2026-29111' "${TRIVYIGNORE}" || \
+    fail "CVE-2026-29111 missing from .trivyignore.yaml"
+grep -q 'id: CVE-2025-69720' "${TRIVYIGNORE}" || \
+    fail "CVE-2025-69720 missing from .trivyignore.yaml"
+
 # Test image in the CI workflow can't have its provenance attested by Docker Scout because the
 # image is built locally and not pushed to a registry, so this test is skipped in the CI context.
-# echo "[INFO] Test 10: Docker Scout sees provenance attestation"
+# echo "[INFO] Test 16: Docker Scout sees provenance attestation"
 # if ! command -v docker >/dev/null 2>&1 || ! docker scout version >/dev/null 2>&1; then
 #     echo "[SKIP] Test 10: docker scout not available — skipping provenance attestation check"
 # else
@@ -100,18 +135,16 @@ assert_contains "${build_help_output}" "--cache CACHE_RULES" "build help cache"
 #     assert_contains "${scout_output}" "Provenance obtained from attestation" "provenance attestation"
 # fi
 
-DOCKERFILE="$(cd "$(dirname "$0")/.." && pwd)/Dockerfile"
-
-echo "[INFO] Test 11: Dockerfile declares ARG VERSION"
+echo "[INFO] Test 17: Dockerfile declares ARG VERSION"
 grep -qE '^ARG VERSION=' "${DOCKERFILE}" || fail "ARG VERSION not declared in Dockerfile"
 
-echo "[INFO] Test 12: Dockerfile declares ARG GIT_COMMIT"
+echo "[INFO] Test 18: Dockerfile declares ARG GIT_COMMIT"
 grep -qE '^ARG GIT_COMMIT=' "${DOCKERFILE}" || fail "ARG GIT_COMMIT not declared in Dockerfile"
 
-echo "[INFO] Test 13: Dockerfile declares ARG BUILD_DATE"
+echo "[INFO] Test 19: Dockerfile declares ARG BUILD_DATE"
 grep -qE '^ARG BUILD_DATE=' "${DOCKERFILE}" || fail "ARG BUILD_DATE not declared in Dockerfile"
 
-echo "[INFO] Test 14: Dockerfile has required OCI LABEL keys"
+echo "[INFO] Test 20: Dockerfile has required OCI LABEL keys"
 for label in \
     'org.opencontainers.image.title' \
     'org.opencontainers.image.description' \
@@ -123,7 +156,7 @@ for label in \
     grep -qF "${label}" "${DOCKERFILE}" || fail "LABEL ${label} not declared in Dockerfile"
 done
 
-echo "[INFO] Test 15: OCI version/revision/created labels are wired to ARG variables"
+echo "[INFO] Test 21: OCI version/revision/created labels are wired to ARG variables"
 # shellcheck disable=SC2016  # single quotes are intentional: grep for the literal string ${VERSION}
 grep -qF 'org.opencontainers.image.version="${VERSION}"' "${DOCKERFILE}" \
     || fail "org.opencontainers.image.version not wired to VERSION build-arg"
