@@ -7,11 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-04-25
+
+### Changed
+
+- Maintenance release
+
 ## [1.0.1] - 2025-03-25
 
 ### Added
 
 - Initial release
 
-[Unreleased]: https://github.com/1121citrus/mdless/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/1121citrus/mdless/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/1121citrus/mdless/releases/tag/v1.1.1
 [1.0.1]: https://github.com/1121citrus/mdless/releases/tag/v1.0.1
