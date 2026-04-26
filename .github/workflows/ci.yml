@@ -23,14 +23,14 @@ jobs:
   # ── Stage 1: Lint ──────────────────────────────────────────────────────────
   # node-syntax-check-file validates the Node.js entrypoint script.
   lint:
-    uses: 1121citrus/shared-github-workflows/.github/workflows/lint.yml@main
+    uses: 1121citrus/shared-github-workflows/.github/workflows/lint.yml@v1
     with:
       node-syntax-check-file: docker-entrypoint.mjs
 
   # ── Stage 2: Build ─────────────────────────────────────────────────────────
   build:
     needs: lint
-    uses: 1121citrus/shared-github-workflows/.github/workflows/build.yml@main
+    uses: 1121citrus/shared-github-workflows/.github/workflows/build.yml@v1
     with:
       image: 1121citrus/mdless
 
@@ -59,7 +59,7 @@ jobs:
   # and documented in SECURITY.md.
   scan:
     needs: build
-    uses: 1121citrus/shared-github-workflows/.github/workflows/scan.yml@main
+    uses: 1121citrus/shared-github-workflows/.github/workflows/scan.yml@v1
     with:
       image: 1121citrus/mdless
       trivyignore: .trivyignore.yaml
@@ -74,7 +74,7 @@ jobs:
         startsWith(github.ref, 'refs/tags/v') ||
         github.ref == 'refs/heads/staging'
       )
-    uses: 1121citrus/shared-github-workflows/.github/workflows/push.yml@main
+    uses: 1121citrus/shared-github-workflows/.github/workflows/push.yml@v1
     with:
       image: 1121citrus/mdless
       staging-use-timestamp: true
