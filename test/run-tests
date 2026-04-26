@@ -91,6 +91,7 @@ assert_contains "${build_help_output}" "--cache CACHE_RULES" "build help cache"
 DOCKERFILE="$(cd "$(dirname "$0")/.." && pwd)/Dockerfile"
 
 echo "[INFO] Test 11: build _timed watcher wait is guarded for set -e"
+# shellcheck disable=SC2016  # single quotes are intentional: grep for literal ${_watcher}
 grep -q 'wait "${_watcher}" 2>/dev/null || true' ./build || \
     fail "_timed watcher wait guard missing in build script"
 
@@ -113,6 +114,7 @@ assert_contains "${skip_update_output}" "Grype DB update skipped" "grype skip-up
 echo "[INFO] Test 14: Dockerfile pins lodash override for CVE-2026-4800 fix"
 grep -q '^ARG LODASH_VERSION=4\.18\.1' "${DOCKERFILE}" || \
     fail "ARG LODASH_VERSION pin missing in Dockerfile"
+# shellcheck disable=SC2016  # single quotes are intentional: grep for literal ${LODASH_VERSION}
 grep -q '"lodash@${LODASH_VERSION}"' "${DOCKERFILE}" || \
     fail "lodash transitive override missing in Dockerfile"
 

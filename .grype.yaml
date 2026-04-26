@@ -1,0 +1,58 @@
+# Grype scan configuration for mdless.
+#
+# Policy: block on HIGH/CRITICAL findings, then explicitly ignore known
+# unfixed Debian Bookworm CVEs that are not reachable in mdless runtime
+# workflows.  Every ignore entry is documented in SECURITY.md.
+
+fail-on-severity: "high"
+
+ignore:
+  # zlib minizip overflow (CRITICAL), no Debian fix yet.
+  # mdless renders markdown text and does not invoke zip/minizip code paths.
+  - vulnerability: CVE-2023-45853
+    package:
+      name: zlib1g
+      type: deb
+
+  # dpkg source package issue (HIGH), no Debian fix yet.
+  # dpkg tooling is not exercised by mdless at runtime.
+  - vulnerability: CVE-2025-6297
+    package:
+      name: dpkg
+      type: deb
+
+  # glibc memalign integer-overflow family (HIGH), no Debian fix yet.
+  # mdless does not expose attacker-controlled low-level allocator inputs.
+  - vulnerability: CVE-2026-0915
+    package:
+      name: libc6
+      type: deb
+  - vulnerability: CVE-2026-0915
+    package:
+      name: libc-bin
+      type: deb
+
+  - vulnerability: CVE-2026-0861
+    package:
+      name: libc6
+      type: deb
+  - vulnerability: CVE-2026-0861
+    package:
+      name: libc-bin
+      type: deb
+
+  - vulnerability: CVE-2025-15281
+    package:
+      name: libc6
+      type: deb
+  - vulnerability: CVE-2025-15281
+    package:
+      name: libc-bin
+      type: deb
+
+  # libtasn1 parser issue (HIGH), no Debian fix yet.
+  # mdless does not parse ASN.1 structures in normal markdown workloads.
+  - vulnerability: CVE-2025-13151
+    package:
+      name: libtasn1-6
+      type: deb

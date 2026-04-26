@@ -31,6 +31,50 @@ This document tracks known security vulnerabilities and remediation status.
   reachable through mdless's markdown-rendering workload
 - **Reference**: <https://avd.aquasec.com/nvd/cve-2026-0861>
 
+#### CVE-2026-0915 (HIGH)
+
+- **Component**: glibc (libc6, libc-bin) — Debian OS package
+- **Affected Version**: 2.36-9+deb12u13 (Debian Bookworm/12)
+- **Fixed Version**: no fix available upstream
+- **Description**: Memory-safety issue in glibc allocation paths.
+- **Status**: No Debian package fix available; monitoring for upstream release
+- **Mitigation**: mdless renders markdown and does not expose low-level,
+  attacker-controlled allocator operations in runtime workflows
+- **Reference**: <https://security-tracker.debian.org/tracker/CVE-2026-0915>
+
+#### CVE-2025-15281 (HIGH)
+
+- **Component**: glibc (libc6, libc-bin) — Debian OS package
+- **Affected Version**: 2.36-9+deb12u13 (Debian Bookworm/12)
+- **Fixed Version**: no fix available upstream
+- **Description**: glibc vulnerability affecting memory-handling internals.
+- **Status**: No Debian package fix available; monitoring for upstream release
+- **Mitigation**: mdless does not run untrusted native extensions and does not
+  expose the reported libc code path in markdown-rendering workloads
+- **Reference**: <https://security-tracker.debian.org/tracker/CVE-2025-15281>
+
+#### CVE-2025-6297 (HIGH)
+
+- **Component**: dpkg (Debian package-management toolchain)
+- **Affected Version**: 1.21.22 (Debian Bookworm/12)
+- **Fixed Version**: no fix available upstream
+- **Description**: Vulnerability in dpkg tooling
+- **Status**: No Debian package fix available; monitoring for upstream release
+- **Mitigation**: dpkg is not invoked at mdless runtime; container execution
+  path only runs Node.js and mdless renderer
+- **Reference**: <https://security-tracker.debian.org/tracker/CVE-2025-6297>
+
+#### CVE-2025-13151 (HIGH)
+
+- **Component**: libtasn1-6 (Debian OS package)
+- **Affected Version**: 4.19.0-2+deb12u1 (Debian Bookworm/12)
+- **Fixed Version**: no fix available upstream
+- **Description**: Parsing vulnerability in ASN.1 handling
+- **Status**: No Debian package fix available; monitoring for upstream release
+- **Mitigation**: mdless does not parse ASN.1 content or certificates during
+  markdown-rendering operations
+- **Reference**: <https://security-tracker.debian.org/tracker/CVE-2025-13151>
+
 #### CVE-2026-27171 (MEDIUM)
 
 - **Component**: zlib1g (Debian OS package)
