@@ -111,6 +111,17 @@ This document tracks known security vulnerabilities and remediation status.
   markdown-rendering workloads
 - **Reference**: <https://avd.aquasec.com/nvd/cve-2026-29111>
 
+#### CVE-2026-4878 (HIGH)
+
+- **Component**: libcap2 (Debian OS package)
+- **Affected Version**: 1:2.66-4+deb12u2+b2 (Debian Bookworm/12)
+- **Fixed Version**: no fix available upstream
+- **Description**: Vulnerability in the Linux POSIX capabilities library.
+- **Status**: No Debian package fix available; monitoring for upstream release
+- **Mitigation**: mdless renders markdown text and does not manage or inspect
+  Linux capabilities at runtime; the vulnerable code path is not reachable
+- **Reference**: <https://security-tracker.debian.org/tracker/CVE-2026-4878>
+
 #### CVE-2025-69720 (HIGH)
 
 - **Component**: ncurses (libtinfo6, ncurses-base, ncurses-bin) — Debian OS packages
