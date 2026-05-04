@@ -56,3 +56,126 @@ ignore:
     package:
       name: libtasn1-6
       type: deb
+
+  # libcap2 capabilities library issue (HIGH), no Debian fix yet.
+  # mdless does not manage Linux POSIX capabilities at runtime.
+  - vulnerability: CVE-2026-4878
+    package:
+      name: libcap2
+      type: deb
+
+  # glibc family (HIGH/CRITICAL), no Debian Bookworm fix yet.
+  # mdless does not expose attacker-controlled allocator, iconv, or socket paths.
+  - vulnerability: CVE-2026-4437
+    package:
+      name: libc-bin
+      type: deb
+  - vulnerability: CVE-2026-4437
+    package:
+      name: libc6
+      type: deb
+
+  - vulnerability: CVE-2026-5450
+    package:
+      name: libc-bin
+      type: deb
+  - vulnerability: CVE-2026-5450
+    package:
+      name: libc6
+      type: deb
+
+  - vulnerability: CVE-2026-4046
+    package:
+      name: libc-bin
+      type: deb
+  - vulnerability: CVE-2026-4046
+    package:
+      name: libc6
+      type: deb
+
+  - vulnerability: CVE-2026-5928
+    package:
+      name: libc-bin
+      type: deb
+  - vulnerability: CVE-2026-5928
+    package:
+      name: libc6
+      type: deb
+
+  - vulnerability: CVE-2026-5435
+    package:
+      name: libc-bin
+      type: deb
+  - vulnerability: CVE-2026-5435
+    package:
+      name: libc6
+      type: deb
+
+  # dpkg source package issue (HIGH), no Debian fix yet.
+  - vulnerability: CVE-2026-2219
+    package:
+      name: dpkg
+      type: deb
+
+  # ncurses (HIGH), no Debian Bookworm fix yet.
+  # mdless uses libtinfo6 only as a transitive Node dependency; this code path
+  # is not reachable from normal markdown rendering.
+  - vulnerability: CVE-2025-69720
+    package:
+      name: libtinfo6
+      type: deb
+  - vulnerability: CVE-2025-69720
+    package:
+      name: ncurses-base
+      type: deb
+  - vulnerability: CVE-2025-69720
+    package:
+      name: ncurses-bin
+      type: deb
+
+  # GnuTLS (HIGH and Unknown severity), no Debian Bookworm fix yet.
+  # mdless does not perform TLS/SSL connections at runtime.
+  - vulnerability: CVE-2026-33845
+    package:
+      name: libgnutls30
+      type: deb
+  - vulnerability: CVE-2026-5419
+    package:
+      name: libgnutls30
+      type: deb
+  - vulnerability: CVE-2026-33846
+    package:
+      name: libgnutls30
+      type: deb
+  - vulnerability: CVE-2026-5260
+    package:
+      name: libgnutls30
+      type: deb
+  - vulnerability: CVE-2026-42009
+    package:
+      name: libgnutls30
+      type: deb
+  - vulnerability: CVE-2026-42010
+    package:
+      name: libgnutls30
+      type: deb
+  - vulnerability: CVE-2026-42011
+    package:
+      name: libgnutls30
+      type: deb
+  - vulnerability: CVE-2026-42012
+    package:
+      name: libgnutls30
+      type: deb
+  - vulnerability: CVE-2026-42013
+    package:
+      name: libgnutls30
+      type: deb
+  - vulnerability: CVE-2026-42014
+    package:
+      name: libgnutls30
+      type: deb
+  - vulnerability: CVE-2026-42015
+    package:
+      name: libgnutls30
+      type: deb
