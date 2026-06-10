@@ -122,6 +122,28 @@ This document tracks known security vulnerabilities and remediation status.
   Linux capabilities at runtime; the vulnerable code path is not reachable
 - **Reference**: <https://security-tracker.debian.org/tracker/CVE-2026-4878>
 
+#### perl-base CVEs (2026-06)
+
+- **Component**: perl-base (Debian OS package)
+- **Affected Version**: 5.36.0-7+deb12u3 (Debian Bookworm/12)
+- **Fixed Version**: no Debian fix available
+
+| CVE | Severity | Debian status |
+| --- | --- | --- |
+| CVE-2026-48962 | High | no fix |
+| CVE-2026-48959 | High | no fix |
+| CVE-2026-42496 | Critical | won't fix |
+| CVE-2026-8376 | Critical | won't fix |
+| CVE-2026-42497 | High | won't fix |
+| CVE-2026-9538 | High | won't fix |
+
+- **Status**: No Debian package fix available; monitoring for upstream release.
+  Trivy ignores all entries above as unfixed (they do not appear in Trivy
+  HIGH/CRITICAL results with `--ignore-unfixed`); Grype ignore entries cover
+  the gap.
+- **Mitigation**: mdless does not execute Perl code or invoke perl-base code
+  paths at runtime; all markdown processing is handled by Node.js
+
 #### CVE-2025-69720 (HIGH)
 
 - **Component**: ncurses (libtinfo6, ncurses-base, ncurses-bin) — Debian OS packages
@@ -148,6 +170,13 @@ This document tracks known security vulnerabilities and remediation status.
 ---
 
 ### Remediated Vulnerabilities
+
+#### libgnutls30 CVEs (remediated 2026-06)
+
+Five GnuTLS CVEs in the Debian base layer (CVE-2026-33845, CVE-2026-42010
+[CRITICAL]; CVE-2026-33846, CVE-2026-3833, CVE-2026-42009 [HIGH]) were fixed
+by adding `RUN apt-get upgrade -y --no-install-recommends` to the Dockerfile
+runtime stage. The fixed package version is `libgnutls30 3.7.9-2+deb12u7`.
 
 #### npm transitive dependency CVEs (remediated 2026-03 through 2026-04)
 

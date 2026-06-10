@@ -133,6 +133,34 @@ ignore:
       name: ncurses-bin
       type: deb
 
+  # perl-base CVEs (HIGH/CRITICAL), no Debian Bookworm fix available.
+  # Trivy ignores these as unfixed. mdless does not execute Perl code
+  # or invoke perl-base code paths at runtime; Node.js handles all processing.
+  - vulnerability: CVE-2026-48962
+    package:
+      name: perl-base
+      type: deb
+  - vulnerability: CVE-2026-48959
+    package:
+      name: perl-base
+      type: deb
+  - vulnerability: CVE-2026-42496
+    package:
+      name: perl-base
+      type: deb
+  - vulnerability: CVE-2026-8376
+    package:
+      name: perl-base
+      type: deb
+  - vulnerability: CVE-2026-42497
+    package:
+      name: perl-base
+      type: deb
+  - vulnerability: CVE-2026-9538
+    package:
+      name: perl-base
+      type: deb
+
   # GnuTLS (HIGH and Unknown severity), no Debian Bookworm fix yet.
   # mdless does not perform TLS/SSL connections at runtime.
   - vulnerability: CVE-2026-33845

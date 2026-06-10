@@ -113,6 +113,13 @@ COPY docker-entrypoint.mjs /usr/local/bin/docker-entrypoint.mjs
 # CVE-2026-27904 (minimatch) that appear in npm's private /usr/local/lib/node_modules/npm/node_modules/.
 RUN rm -rf /usr/local/lib/node_modules/npm
 
+# Apply OS security patches. Upgrades libgnutls30 to fix CVE-2026-33845,
+# CVE-2026-42010 (CRITICAL) and CVE-2026-33846, CVE-2026-3833, CVE-2026-42009
+# (HIGH), all fixed in 3.7.9-2+deb12u7.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 # Drop to a non-root numeric UID, making the constraint explicit and portable.
 ARG UID=10001
 USER ${UID}:${UID}

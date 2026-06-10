@@ -6,7 +6,7 @@ set -eu
 
 IMAGE_NAME="${IMAGE_NAME:-1121citrus/mdless}"
 IMAGE_TAG="${IMAGE_TAG:-${TAG:-test}}"
-IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
+IMAGE="${IMAGE:-${IMAGE_NAME}:${IMAGE_TAG}}"
 
 fail() {
     echo "[FAIL] $*" >&2
