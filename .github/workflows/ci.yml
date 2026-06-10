@@ -7,70 +7,19 @@ on:
   pull_request:
     branches: [main, master]
 
-# Cancel in-progress runs for branch/PR refs; let tag builds always complete.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-# Minimal permissions by default; individual jobs add only what they need.
 permissions:
   contents: read
 
-env:
-  IMAGE: 1121citrus/mdless
-
 jobs:
-  # ── Stage 1: Lint ──────────────────────────────────────────────────────────
-  # node-syntax-check-file validates the Node.js entrypoint script.
-  lint:
-    uses: 1121citrus/shared-github-workflows/.github/workflows/lint.yml@v1
-    with:
-      node-syntax-check-file: docker-entrypoint.mjs
-
-  # ── Stage 2: Build ─────────────────────────────────────────────────────────
-  build:
-    needs: lint
-    uses: 1121citrus/shared-github-workflows/.github/workflows/build.yml@v1
+  ci:
+    uses: 1121citrus/shared-github-workflows/.github/workflows/pipeline.yml@v1
     with:
       image: 1121citrus/mdless
-
-  # ── Stage 3: Test ──────────────────────────────────────────────────────────
-  test:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Download image artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: docker-image
-          path: /tmp
-
-      - name: Load image
-        run: gunzip -c /tmp/image.tar.gz | docker load
-
-      - name: Run integration test suite
-        # TAG=latest tells run-tests to use the pre-built image instead of building.
-        run: TAG=latest sh test/run-tests
-
-  # ── Stage 4: Security scan ─────────────────────────────────────────────────
-  # .trivyignore.yaml suppresses known unfixable CVEs; entries are time-bounded
-  # and documented in SECURITY.md.
-  scan:
-    needs: build
-    uses: 1121citrus/shared-github-workflows/.github/workflows/scan.yml@v1
-    with:
-      image: 1121citrus/mdless
+      test-mode: custom-sh
+      test-custom-cmd: TAG="${VERSION:-test}" sh test/run-tests
       trivyignore: .trivyignore.yaml
-
-  # ── Stage 5: Push to Docker Hub ────────────────────────────────────────────
-  push:
-    needs: [test, scan]
-    if: >
-      github.event_name == 'push' &&
-      startsWith(github.ref, 'refs/tags/v')
-    uses: 1121citrus/shared-github-workflows/.github/workflows/push.yml@v1
-    with:
-      image: 1121citrus/mdless
     secrets: inherit
