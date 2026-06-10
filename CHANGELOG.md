@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-06-10
+
+### Security
+
+- `Dockerfile`: add `RUN apt-get upgrade -y --no-install-recommends` in the
+  runtime stage to remediate five `libgnutls30` CVEs fixed in
+  `3.7.9-2+deb12u7` (CVE-2026-33845, CVE-2026-42010 CRITICAL;
+  CVE-2026-33846, CVE-2026-3833, CVE-2026-42009 HIGH).
+- `.grype.yaml`: add ignore entries for six new `perl-base` CVEs surfaced by
+  Grype's DB (CVE-2026-48962, CVE-2026-48959 HIGH; CVE-2026-42496,
+  CVE-2026-8376 CRITICAL won't-fix; CVE-2026-42497, CVE-2026-9538 HIGH
+  won't-fix); Trivy already excludes these via `--ignore-unfixed`.
+- `SECURITY.md`: document the `perl-base` CVE group and the `libgnutls30`
+  remediation.
+
+### Fixed
+
+- `test/run-tests`: honor `IMAGE` env var when already set; was
+  unconditionally overwriting it, causing test runs to target
+  `1121citrus/mdless:test` instead of the dev image just built.
+
+### Changed
+
+- `build`: pin `SCC_TAG` to `v3.7.0`; remove redundant `env` prefix on
+  `IMAGE` export; add `scc` subcommand prefix to metrics stage invocation.
+
 ## [1.1.2] - 2026-05-04
 
 ### Security
@@ -152,7 +178,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   OCI labels.
 - CI/CD pipeline: lint → build → test → publish.
 
-[Unreleased]: https://github.com/1121citrus/mdless/compare/v1.1.2...HEAD
+[Unreleased]: https://github.com/1121citrus/mdless/compare/v1.1.3...HEAD
+[1.1.3]: https://github.com/1121citrus/mdless/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/1121citrus/mdless/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/1121citrus/mdless/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/1121citrus/mdless/compare/v1.0.3...v1.1.0
